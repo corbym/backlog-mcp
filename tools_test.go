@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -39,6 +40,10 @@ const fixtureBacklog = `# Backlog
 const fixtureStory001 = `# STORY-001: Basic combat
 
 Initial implementation of the combat system.
+
+## Acceptance criteria
+
+- [ ] Define acceptance criteria
 `
 
 const fixtureStory002 = `# STORY-002: Enemy AI
@@ -398,3 +403,299 @@ func TestAddStoryNote_UnknownStory_ReturnsError(t *testing.T) {
 	})
 	assertError(t, result, "STORY-999")
 }
+
+// ── create_epic ───────────────────────────────────────────────────────────────
+
+func TestCreateEpic_CreatesDirectoryAndEpicFile(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "create_epic", map[string]any{
+		"title":       "New Feature",
+		"description": "Build the new feature.",
+	}))
+
+	epicID, _ := obj["epic_id"].(string)
+	epicDir, _ := obj["path"].(string)
+
+	if epicID == "" {
+		t.Fatal("expected non-empty epic_id")
+	}
+	if epicDir == "" {
+		t.Fatal("expected non-empty path")
+	}
+
+	// Directory should exist under root.
+	info, err := os.Stat(filepath.Join(root, epicDir))
+	if err != nil || !info.IsDir() {
+		t.Errorf("epic directory %q not created: %v", epicDir, err)
+	}
+
+	// The epic .md file should exist inside the directory.
+	n := epicDir[len("epic-"):len("epic-") + 3] // e.g. "003"
+	epicMD := filepath.Join(root, epicDir, "epic-"+n+".md")
+	content, err := os.ReadFile(epicMD)
+	if err != nil {
+		t.Fatalf("epic.md not created at %s: %v", epicMD, err)
+	}
+	if !strings.Contains(string(content), "New Feature") {
+		t.Errorf("epic.md missing title: %s", content)
+	}
+	if !strings.Contains(string(content), "Build the new feature.") {
+		t.Errorf("epic.md missing description: %s", content)
+	}
+
+	// requirements-index.md should contain the new epic section.
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), epicID) {
+		t.Errorf("requirements-index.md missing %s:\n%s", epicID, index)
+	}
+}
+
+func TestCreateEpic_AssignsNextID(t *testing.T) {
+	_, s := newFixture(t)
+
+	// Fixture has EPIC-001 and EPIC-002 — next should be EPIC-003.
+	obj := unmarshalObject(t, callTool(t, s, "create_epic", map[string]any{
+		"title": "Third Epic",
+	}))
+
+	if obj["epic_id"] != "EPIC-003" {
+		t.Errorf("expected EPIC-003, got %q", obj["epic_id"])
+	}
+}
+
+func TestCreateEpic_SlugInPath(t *testing.T) {
+	_, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "create_epic", map[string]any{
+		"title": "My Cool Epic",
+	}))
+
+	path, _ := obj["path"].(string)
+	if !strings.Contains(path, "my-cool-epic") {
+		t.Errorf("expected slug in path, got %q", path)
+	}
+}
+
+// ── create_story ──────────────────────────────────────────────────────────────
+
+func TestCreateStory_CreatesFileAndRegisters(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "create_story", map[string]any{
+		"epic_id":     "EPIC-001",
+		"title":       "New story",
+		"description": "Does something useful.",
+	}))
+
+	storyID, _ := obj["story_id"].(string)
+	relPath, _ := obj["path"].(string)
+
+	if storyID == "" {
+		t.Fatal("expected non-empty story_id")
+	}
+	if relPath == "" {
+		t.Fatal("expected non-empty path")
+	}
+
+	// Story file should exist.
+	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relPath)))
+	if err != nil {
+		t.Fatalf("story file not created at %s: %v", relPath, err)
+	}
+	if !strings.Contains(string(content), "New story") {
+		t.Errorf("story file missing title: %s", content)
+	}
+	if !strings.Contains(string(content), "Does something useful.") {
+		t.Errorf("story file missing description: %s", content)
+	}
+
+	// requirements-index.md should contain the new story.
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), storyID) {
+		t.Errorf("requirements-index.md missing %s:\n%s", storyID, index)
+	}
+
+	// backlog.md should contain the new story.
+	backlog, _ := os.ReadFile(filepath.Join(root, "backlog.md"))
+	if !strings.Contains(string(backlog), storyID) {
+		t.Errorf("backlog.md missing %s:\n%s", storyID, backlog)
+	}
+}
+
+func TestCreateStory_AssignsNextID(t *testing.T) {
+	_, s := newFixture(t)
+
+	// Fixture has STORY-001, STORY-002, STORY-003 — next should be STORY-004.
+	obj := unmarshalObject(t, callTool(t, s, "create_story", map[string]any{
+		"epic_id": "EPIC-001",
+		"title":   "Fourth story",
+	}))
+
+	if obj["story_id"] != "STORY-004" {
+		t.Errorf("expected STORY-004, got %q", obj["story_id"])
+	}
+}
+
+func TestCreateStory_EpicIDCaseInsensitive(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "create_story", map[string]any{
+		"epic_id": "epic-001",
+		"title":   "Case insensitive",
+	})
+	assertOK(t, result)
+}
+
+func TestCreateStory_UnknownEpic_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "create_story", map[string]any{
+		"epic_id": "EPIC-999",
+		"title":   "Orphan story",
+	})
+	assertError(t, result, "EPIC-999")
+}
+
+// ── set_acceptance_criteria ───────────────────────────────────────────────────
+
+func TestSetAcceptanceCriteria_ReplacesCriteriaSection(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Combat starts when enemy is adjacent", "Player loses HP on hit"},
+	}))
+
+	if obj["story_id"] != "STORY-001" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+	if obj["criteria_count"] != float64(2) {
+		t.Errorf("criteria_count: got %v", obj["criteria_count"])
+	}
+	if obj["path"] == "" {
+		t.Error("expected non-empty path")
+	}
+
+	// Verify on disk: section replaced with new criteria.
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body := string(content)
+	if !strings.Contains(body, "## Acceptance criteria") {
+		t.Error("## Acceptance criteria section missing")
+	}
+	if !strings.Contains(body, "- [ ] Combat starts when enemy is adjacent") {
+		t.Error("first criterion missing")
+	}
+	if !strings.Contains(body, "- [ ] Player loses HP on hit") {
+		t.Error("second criterion missing")
+	}
+	// Original story content should still be present.
+	if !strings.Contains(body, "Initial implementation") {
+		t.Error("original story content was clobbered")
+	}
+}
+
+func TestSetAcceptanceCriteria_Idempotent(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Old criterion"},
+	})
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"New criterion A", "New criterion B"},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body := string(content)
+	if strings.Contains(body, "Old criterion") {
+		t.Error("stale criterion from first call should have been replaced")
+	}
+	if !strings.Contains(body, "- [ ] New criterion A") {
+		t.Error("New criterion A missing after second call")
+	}
+	if !strings.Contains(body, "- [ ] New criterion B") {
+		t.Error("New criterion B missing after second call")
+	}
+	if strings.Count(body, "## Acceptance criteria") != 1 {
+		t.Error("expected exactly one ## Acceptance criteria heading")
+	}
+}
+
+func TestSetAcceptanceCriteria_EmptyCriteria_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{},
+	})
+	assertError(t, result, "empty")
+}
+
+func TestSetAcceptanceCriteria_MissingCriteria_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+	})
+	assertError(t, result, "criteria")
+}
+
+func TestSetAcceptanceCriteria_UnknownStory_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-999",
+		"criteria": []any{"Some criterion"},
+	})
+	assertError(t, result, "STORY-999")
+}
+
+// ── concurrency ───────────────────────────────────────────────────────────────
+
+// TestConcurrentSetStoryStatus_Serialises fires 10 goroutines simultaneously,
+// each transitioning a story status, and asserts the index file is valid
+// (parseable, non-empty) after all writes complete — i.e. no interleaved
+// corruption occurred.
+func TestConcurrentSetStoryStatus_Serialises(t *testing.T) {
+	root, s := newFixture(t)
+
+	const workers = 10
+	var wg sync.WaitGroup
+	errs := make(chan string, workers)
+
+	statuses := []string{"in-progress", "draft", "in-progress", "draft", "in-progress",
+		"draft", "in-progress", "draft", "in-progress", "draft"}
+
+	for i := range workers {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			result := callTool(t, s, "set_story_status", map[string]any{
+				"story_id": "STORY-001",
+				"status":   statuses[idx],
+			})
+			if result.IsError {
+				errs <- resultText(result)
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+
+	for e := range errs {
+		t.Errorf("concurrent worker got error: %s", e)
+	}
+
+	// The index file must still be parseable and contain the story entry.
+	data, err := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if err != nil {
+		t.Fatalf("reading index after concurrent writes: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "STORY-001") {
+		t.Error("requirements-index.md is corrupted: STORY-001 entry missing")
+	}
+	if !strings.Contains(content, "EPIC-001") {
+		t.Error("requirements-index.md is corrupted: EPIC-001 section missing")
+	}
+}
+

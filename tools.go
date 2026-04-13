@@ -134,6 +134,12 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
 			storyID := strings.ToUpper(requiredString(req, "story_id"))
 			newStatus := strings.ToLower(requiredString(req, "status"))
 
@@ -193,6 +199,12 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
 			storyID := strings.ToUpper(requiredString(req, "story_id"))
 			note := requiredString(req, "note")
 
@@ -210,6 +222,122 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				"story_id":    storyID,
 				"appended_at": timestamp,
 				"path":        relPath,
+			})
+		},
+	)
+
+	// ── create_epic ──────────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("create_epic",
+			mcp.WithDescription("Create a new epic. Assigns the next EPIC-NNN ID, creates the epic directory and epic.md, and registers it in requirements-index.md."),
+			mcp.WithString("title",
+				mcp.Description("Title of the epic"),
+				mcp.Required(),
+			),
+			mcp.WithString("description",
+				mcp.Description("Optional description / goal for the epic"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			title := requiredString(req, "title")
+			description := optionalString(req, "description")
+
+			epicID, epicDir, err := parser.CreateEpic(cfg.StoriesRoot, title, description)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(map[string]any{
+				"epic_id": epicID,
+				"path":    epicDir,
+			})
+		},
+	)
+
+	// ── create_story ─────────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("create_story",
+			mcp.WithDescription("Create a new story under an existing epic. Assigns the next STORY-NNN ID, writes the story file, and registers it in requirements-index.md and backlog.md with status draft."),
+			mcp.WithString("epic_id",
+				mcp.Description("Epic ID to create the story under, e.g. EPIC-003"),
+				mcp.Required(),
+			),
+			mcp.WithString("title",
+				mcp.Description("Title of the story"),
+				mcp.Required(),
+			),
+			mcp.WithString("description",
+				mcp.Description("Optional description / goal for the story"),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			epicID := strings.ToUpper(requiredString(req, "epic_id"))
+			title := requiredString(req, "title")
+			description := optionalString(req, "description")
+
+			storyID, relPath, err := parser.CreateStory(cfg.StoriesRoot, epicID, title, description)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(map[string]any{
+				"story_id": storyID,
+				"path":     relPath,
+			})
+		},
+	)
+
+	// ── set_acceptance_criteria ──────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("set_acceptance_criteria",
+			mcp.WithDescription("Replace the acceptance criteria section of a story file. Pass criteria as an array of strings; each becomes a `- [ ] ...` checklist line. Idempotent: calling again replaces the previous AC entirely."),
+			mcp.WithString("story_id",
+				mcp.Description("Story ID, e.g. STORY-007"),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			storyID := strings.ToUpper(requiredString(req, "story_id"))
+
+			criteria, err := requiredStringSlice(req, "criteria")
+			if err != nil {
+				return toolError(err), nil
+			}
+			if len(criteria) == 0 {
+				return toolError(fmt.Errorf("criteria must not be empty")), nil
+			}
+
+			relPath, err := parser.FindStoryPath(cfg.StoriesRoot, storyID)
+			if err != nil {
+				return toolError(fmt.Errorf("finding story %s: %w", storyID, err)), nil
+			}
+
+			if err := parser.SetAcceptanceCriteria(cfg.StoriesRoot, relPath, criteria); err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(map[string]any{
+				"story_id":       storyID,
+				"criteria_count": len(criteria),
+				"path":           relPath,
 			})
 		},
 	)
@@ -279,3 +407,29 @@ func toolJSON(v any) (*mcp.CallToolResult, error) {
 func toolError(err error) *mcp.CallToolResult {
 	return mcp.NewToolResultError(err.Error())
 }
+
+// requiredStringSlice extracts a required array-of-strings parameter from a tool request.
+func requiredStringSlice(req mcp.CallToolRequest, key string) ([]string, error) {
+	args, ok := req.Params.Arguments.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("missing required parameter %q", key)
+	}
+	v, ok := args[key]
+	if !ok || v == nil {
+		return nil, fmt.Errorf("missing required parameter %q", key)
+	}
+	raw, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("parameter %q must be an array of strings", key)
+	}
+	result := make([]string, 0, len(raw))
+	for _, item := range raw {
+		s, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("parameter %q must be an array of strings, got non-string element", key)
+		}
+		result = append(result, s)
+	}
+	return result, nil
+}
+

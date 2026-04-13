@@ -18,6 +18,15 @@ Project stories and epics live in `requirements/`. Use the backlog-mcp MCP tools
 - Epic IDs: `EPIC-NNN` (e.g. `EPIC-003`)
 - Always call `set_story_status` when you start or finish work on a story
 - Use `add_story_note` to record decisions, blockers, or progress — never edit story files directly
+- After `create_story`, immediately call `set_acceptance_criteria` with a concrete list of criteria before beginning implementation — a story with only the placeholder AC is not ready to implement
+
+**Testing (mandatory)**
+
+- **Always write tests first.** No production code is written before a failing test exists that demands it.
+- **Always write outside-in.** Start from the outermost entry point (tool handler, HTTP handler, public API) and work inward. The first test must exercise the full slice of behaviour from the outside; only then add lower-level unit tests as needed to drive internal design.
+- The test must fail for the right reason before any implementation is written. Verify the failure message makes sense.
+- Only write enough production code to make the current failing test pass, then refactor before moving on.
+- Do not write tests after the fact to cover code that already exists — if you find yourself doing this, stop, delete the code, and restart test-first.
 
 **Plans**
 

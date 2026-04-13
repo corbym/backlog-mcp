@@ -80,6 +80,57 @@ func AppendNote(root, relPath, timestamp, note string) error {
 	return writeAtomic(full, []byte(content))
 }
 
+// SetAcceptanceCriteria replaces the ## Acceptance criteria section of a story
+// file with the provided list of criteria. Each item becomes a `- [ ] ...` line.
+// The operation is idempotent: calling it again replaces the previous content.
+// All other sections (Goal, Notes, etc.) are left unchanged.
+func SetAcceptanceCriteria(root, relPath string, criteria []string) error {
+	full := filepath.Join(root, filepath.FromSlash(relPath))
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return fmt.Errorf("reading story for acceptance criteria: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	// Locate the ## Acceptance criteria heading.
+	acStart := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "## Acceptance criteria" {
+			acStart = i
+			break
+		}
+	}
+	if acStart == -1 {
+		return fmt.Errorf("no '## Acceptance criteria' section found in %s", relPath)
+	}
+
+	// Find where the section ends: next ## heading or end of file.
+	acEnd := len(lines)
+	for i := acStart + 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") {
+			acEnd = i
+			break
+		}
+	}
+
+	// Build the replacement section.
+	replacement := make([]string, 0, len(criteria)+2)
+	replacement = append(replacement, "## Acceptance criteria", "")
+	for _, c := range criteria {
+		replacement = append(replacement, "- [ ] "+c)
+	}
+	replacement = append(replacement, "")
+
+	// Stitch together: everything before AC + replacement + everything after.
+	out := make([]string, 0, len(lines))
+	out = append(out, lines[:acStart]...)
+	out = append(out, replacement...)
+	out = append(out, lines[acEnd:]...)
+
+	return writeAtomic(full, []byte(strings.Join(out, "\n")))
+}
+
 // extractNumber returns the zero-padded numeric portion of a story/epic ID.
 // "STORY-009" -> "009", "STORY-47" -> "047" is NOT done here; we match as-is from the ID.
 // Actually we just strip leading zeros and reformat to match filesystem convention.

@@ -40,14 +40,7 @@ func main() {
 
 	s := buildServer(cfg)
 
-	switch transport() {
-	case "http":
-		if err := runHTTP(s, httpAddr()); err != nil {
-			log.Fatalf("backlog-mcp: http server error: %v", err)
-		}
-	default:
-		if err := runStdio(s); err != nil {
-			log.Fatalf("backlog-mcp: stdio server error: %v", err)
-		}
+	if err := runStdio(s); err != nil {
+		log.Fatalf("backlog-mcp: stdio server error: %v", err)
 	}
 }
