@@ -1,4 +1,4 @@
-module backlog
+module github.com/corbym/backlog-mcp
 
 go 1.23.0
 

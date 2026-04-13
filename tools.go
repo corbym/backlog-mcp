@@ -1,7 +1,7 @@
 package main
 
 import (
-	"backlog/parser"
+	"github.com/corbym/backlog-mcp/parser"
 	"context"
 	"encoding/json"
 	"fmt"

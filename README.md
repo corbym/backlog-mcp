@@ -17,7 +17,7 @@ Download the latest binary for your platform from the [Releases](../../releases)
 Or, if you have Go installed:
 
 ```bash
-go install backlog@latest
+go install github.com/corbym/backlog-mcp@latest
 ```
 
 ---
