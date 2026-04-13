@@ -1,4 +1,4 @@
-package backlog
+package main
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 
 func buildServer(cfg *Config) *server.MCPServer {
 	s := server.NewMCPServer(
-		"deep-mcp",
+		"backlog-mcp",
 		"0.1.0",
 		server.WithToolCapabilities(true),
 	)
@@ -20,22 +20,22 @@ func buildServer(cfg *Config) *server.MCPServer {
 }
 
 func runStdio(s *server.MCPServer) error {
-	log.Println("deep-mcp: starting in stdio mode")
+	log.Println("backlog-mcp: starting in stdio mode")
 	return server.ServeStdio(s)
 }
 
 func runHTTP(s *server.MCPServer, addr string) error {
-	log.Printf("deep-mcp: starting HTTP/SSE server on %s", addr)
+	log.Printf("backlog-mcp: starting HTTP/SSE server on %s", addr)
 	sseServer := server.NewSSEServer(s,
 		server.WithBaseURL(fmt.Sprintf("http://%s", addr)),
 	)
 	return http.ListenAndServe(addr, sseServer)
 }
 
-// transport returns "stdio" or "http" based on the DEEP_TRANSPORT env var.
+// transport returns "stdio" or "http" based on the BACKLOG_TRANSPORT env var.
 // Default is stdio.
 func transport() string {
-	t := os.Getenv("DEEP_TRANSPORT")
+	t := os.Getenv("BACKLOG_TRANSPORT")
 	if t == "http" {
 		return "http"
 	}
@@ -43,9 +43,9 @@ func transport() string {
 }
 
 // httpAddr returns the address to listen on for HTTP mode.
-// Default: 0.0.0.0:8080, overridable via DEEP_HTTP_ADDR.
+// Default: 0.0.0.0:8080, overridable via BACKLOG_HTTP_ADDR.
 func httpAddr() string {
-	addr := os.Getenv("DEEP_HTTP_ADDR")
+	addr := os.Getenv("BACKLOG_HTTP_ADDR")
 	if addr == "" {
 		return "0.0.0.0:8080"
 	}

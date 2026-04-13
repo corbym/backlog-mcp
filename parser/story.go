@@ -69,7 +69,7 @@ func AppendNote(root, relPath, timestamp, note string) error {
 	}
 
 	content := string(data)
-	noteBlock := fmt.Sprintf("\n<!-- DEEP-MCP: %s -->\n%s\n", timestamp, note)
+	noteBlock := fmt.Sprintf("\n<!-- backlog-mcp: %s -->\n%s\n", timestamp, note)
 
 	if strings.Contains(content, "## Notes") {
 		content = content + noteBlock

@@ -10,7 +10,7 @@ import (
 // so a crash mid-write cannot corrupt the target file.
 func writeAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".deep-mcp-tmp-*")
+	tmp, err := os.CreateTemp(dir, ".backlog-mcp-tmp-*")
 	if err != nil {
 		return fmt.Errorf("creating temp file: %w", err)
 	}

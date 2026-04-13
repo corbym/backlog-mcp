@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "backlog-mcp": {
+      "command": "/Users/mattcorby-eaglen/repos/backlog/backlog-mcp",
+      "env": {
+        "BACKLOG_ROOT": "/Users/mattcorby-eaglen/repos/backlog/requirements"
+      }
+    }
+  }
+}

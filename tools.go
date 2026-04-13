@@ -1,4 +1,4 @@
-package backlog
+package main
 
 import (
 	"backlog/parser"
@@ -261,13 +261,11 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func requiredString(req mcp.CallToolRequest, key string) string {
-	v, _ := req.Params.Arguments[key].(string)
-	return v
+	return req.GetString(key, "")
 }
 
 func optionalString(req mcp.CallToolRequest, key string) string {
-	v, _ := req.Params.Arguments[key].(string)
-	return v
+	return req.GetString(key, "")
 }
 
 func toolJSON(v any) (*mcp.CallToolResult, error) {
