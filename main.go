@@ -8,10 +8,11 @@ import (
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		args := os.Args[2:]
-		if len(args) == 0 {
-			log.Fatal("backlog-mcp: usage: backlog-mcp init <directory>")
+		dir := "requirements"
+		if len(args) > 0 {
+			dir = args[0]
 		}
-		if err := runInit(args[0]); err != nil {
+		if err := runInit(dir); err != nil {
 			log.Fatalf("backlog-mcp: init error: %v", err)
 		}
 		return
