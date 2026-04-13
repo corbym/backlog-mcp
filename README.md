@@ -82,6 +82,10 @@ The server looks for a `requirements/` directory relative to the working directo
 | `get_story` | Get full markdown content and metadata for a story |
 | `set_story_status` | Update story status in index and backlog |
 | `add_story_note` | Append a timestamped note to a story file |
+| `complete_story` | Mark a story done and append a mandatory completion summary in one call |
+| `create_epic` | Create a new epic — assigns next EPIC-NNN ID, writes epic file, registers in index |
+| `create_story` | Create a new story under an epic — assigns next STORY-NNN ID, registers in index and backlog |
+| `set_acceptance_criteria` | Replace the acceptance criteria section of a story (idempotent) |
 | `get_index_summary` | High-level epic/story counts by status |
 
 ---
