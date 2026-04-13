@@ -1,3 +1,5 @@
+[![backlog-mcp MCP server](https://glama.ai/mcp/servers/corbym/backlog-mcp/badges/score.svg)](https://glama.ai/mcp/servers/corbym/backlog-mcp)
+
 # backlog-mcp
 
 An MCP server that gives AI agents structured read/write access to a story-based project backlog. Agents can list stories, read content, update status, and append notes — all backed by plain markdown files that live inside your project repository.
