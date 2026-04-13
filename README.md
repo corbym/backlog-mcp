@@ -1,4 +1,3 @@
-[![backlog-mcp MCP server](https://glama.ai/mcp/servers/corbym/backlog-mcp/badges/score.svg)](https://glama.ai/mcp/servers/corbym/backlog-mcp)
 
 # backlog-mcp
 
