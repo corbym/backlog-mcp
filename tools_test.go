@@ -431,7 +431,7 @@ func TestCreateEpic_CreatesDirectoryAndEpicFile(t *testing.T) {
 	}
 
 	// The epic .md file should exist inside the directory.
-	n := epicDir[len("epic-"):len("epic-") + 3] // e.g. "003"
+	n := epicDir[len("epic-") : len("epic-")+3] // e.g. "003"
 	epicMD := filepath.Join(root, epicDir, "epic-"+n+".md")
 	content, err := os.ReadFile(epicMD)
 	if err != nil {
@@ -649,6 +649,75 @@ func TestSetAcceptanceCriteria_UnknownStory_ReturnsError(t *testing.T) {
 	assertError(t, result, "STORY-999")
 }
 
+// ── complete_story ─────────────────────────────────────────────────────────────
+
+func TestCompleteStory_CompletesLifecycleAndAppendsSummary(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-002",
+		"summary":  "Implemented complete story flow and validated end-to-end.",
+	}))
+
+	if obj["story_id"] != "STORY-002" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+	if obj["completed_at"] == "" {
+		t.Error("expected completed_at timestamp")
+	}
+	if obj["backlog_removed"] != true {
+		t.Errorf("expected backlog_removed=true, got %v", obj["backlog_removed"])
+	}
+
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), "| [STORY-002](./epic-001-combat-system/story-002.md) | Enemy AI | done |") {
+		t.Error("requirements-index.md not updated to done for STORY-002")
+	}
+
+	backlog, _ := os.ReadFile(filepath.Join(root, "backlog.md"))
+	if strings.Contains(string(backlog), "STORY-002") {
+		t.Error("STORY-002 should have been removed from backlog.md")
+	}
+
+	story, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-002.md"))
+	body := string(story)
+	if !strings.Contains(body, "## Notes") {
+		t.Error("## Notes section not added to story file")
+	}
+	if !strings.Contains(body, "Implemented complete story flow and validated end-to-end.") {
+		t.Error("summary text not found in story file")
+	}
+	if !strings.Contains(body, "<!-- backlog-mcp:") {
+		t.Error("backlog-mcp timestamp comment not found in story file")
+	}
+}
+
+func TestCompleteStory_MissingSummary_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-002",
+	})
+	assertError(t, result, "summary")
+}
+
+func TestCompleteStory_UnknownStory_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-999",
+		"summary":  "Done.",
+	})
+	assertError(t, result, "STORY-999")
+}
+
+func TestCompleteStory_AlreadyDone_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-003",
+		"summary":  "Done again.",
+	})
+	assertError(t, result, "already done")
+}
+
 // ── concurrency ───────────────────────────────────────────────────────────────
 
 // TestConcurrentSetStoryStatus_Serialises fires 10 goroutines simultaneously,
@@ -698,4 +767,3 @@ func TestConcurrentSetStoryStatus_Serialises(t *testing.T) {
 		t.Error("requirements-index.md is corrupted: EPIC-001 section missing")
 	}
 }
-

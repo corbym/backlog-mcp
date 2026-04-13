@@ -10,13 +10,15 @@ Project stories and epics live in `requirements/`. Use the backlog-mcp MCP tools
 - `get_story` — read the full markdown content and metadata for a story
 - `set_story_status` — update a story's status (`draft`, `in-progress`, `done`, `blocked`)
 - `add_story_note` — append a timestamped note to a story file
+- `complete_story` — mark a story `done` and append the completion summary note in one call
 - `get_index_summary` — high-level epic/story counts by status
 
 **Conventions**
 
 - Story IDs: `STORY-NNN` (e.g. `STORY-047`)
 - Epic IDs: `EPIC-NNN` (e.g. `EPIC-003`)
-- Always call `set_story_status` when you start or finish work on a story
+- Always call `set_story_status` when you start work on a story (`in-progress`)
+- Always call `complete_story` when you finish work on a story (do not use `set_story_status` + `add_story_note` separately)
 - Use `add_story_note` to record decisions, blockers, or progress — never edit story files directly
 - After `create_story`, immediately call `set_acceptance_criteria` with a concrete list of criteria before beginning implementation — a story with only the placeholder AC is not ready to implement
 

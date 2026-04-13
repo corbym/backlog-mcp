@@ -8,3 +8,8 @@ Describe what this story should accomplish.
 
 - [ ] Criterion one
 - [ ] Criterion two
+
+## Notes
+
+<!-- backlog-mcp: 2026-04-13T16:14:34Z -->
+Backlog grooming: retired the placeholder example story so active backlog only contains actionable product work.

@@ -22,3 +22,8 @@ AGENTS.md should be updated to instruct agents to call `complete_story` (not `se
 - [ ] `AGENTS.md` is updated: agents are instructed to call `complete_story` when finishing a story, replacing the two-step `set_story_status` + `add_story_note` pattern
 - [ ] An outside-in test exercises the full slice: tool call → status updated on disk → note appended on disk → correct JSON returned
 - [ ] A test asserts that omitting `summary` returns a tool error (not a panic or silent no-op)
+
+## Notes
+
+<!-- backlog-mcp: 2026-04-13T15:53:27Z -->
+Implemented STORY-007 end-to-end with test-first outside-in flow. Added failing complete_story tests first, implemented complete_story tool with required story_id + summary, status-to-done transition, backlog removal, and completion note append, plus clear errors for missing summary, unknown story, and already-done story. Updated AGENTS.md to instruct complete_story for finish lifecycle. Verified with `go test ./... -count=1` passing.

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/corbym/backlog-mcp/parser"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/corbym/backlog-mcp/parser"
 	"strings"
 	"time"
 
@@ -226,6 +226,96 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 		},
 	)
 
+	// ── complete_story ───────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("complete_story",
+			mcp.WithDescription("Mark a story done and append a mandatory completion summary note in one call."),
+			mcp.WithString("story_id",
+				mcp.Description("Story ID, e.g. STORY-047"),
+				mcp.Required(),
+			),
+			mcp.WithString("summary",
+				mcp.Description("Required completion summary that will be appended to the story notes."),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			storyID := strings.ToUpper(requiredString(req, "story_id"))
+			summary := strings.TrimSpace(requiredString(req, "summary"))
+			if summary == "" {
+				return toolError(fmt.Errorf("missing required parameter \"summary\"")), nil
+			}
+
+			epics, err := parser.ParseIndex(cfg.StoriesRoot)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			found := false
+			status := ""
+			for _, epic := range epics {
+				for _, s := range epic.Stories {
+					if s.ID == storyID {
+						found = true
+						status = s.Status
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+			if !found {
+				return toolError(fmt.Errorf("story %s not found in index", storyID)), nil
+			}
+			if status == "done" {
+				return toolError(fmt.Errorf("story %s is already done", storyID)), nil
+			}
+
+			relPath, err := parser.FindStoryPath(cfg.StoriesRoot, storyID)
+			if err != nil {
+				return toolError(fmt.Errorf("finding story %s: %w", storyID, err)), nil
+			}
+
+			if _, err := parser.UpdateStoryStatus(cfg.StoriesRoot, storyID, "done"); err != nil {
+				return toolError(err), nil
+			}
+
+			backlogRemoved := false
+			entries, err := parser.ParseBacklog(cfg.StoriesRoot)
+			if err != nil {
+				return toolError(err), nil
+			}
+			for _, e := range entries {
+				if e.StoryID != storyID {
+					continue
+				}
+				if err := parser.RemoveFromBacklog(cfg.StoriesRoot, storyID); err != nil {
+					return toolError(err), nil
+				}
+				backlogRemoved = true
+				break
+			}
+
+			completedAt := time.Now().UTC().Format(time.RFC3339)
+			if err := parser.AppendNote(cfg.StoriesRoot, relPath, completedAt, summary); err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(map[string]any{
+				"story_id":        storyID,
+				"completed_at":    completedAt,
+				"backlog_removed": backlogRemoved,
+			})
+		},
+	)
+
 	// ── create_epic ──────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("create_epic",
@@ -432,4 +522,3 @@ func requiredStringSlice(req mcp.CallToolRequest, key string) ([]string, error) 
 	}
 	return result, nil
 }
-

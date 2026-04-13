@@ -9,3 +9,7 @@
 - [ ] `set_story_status` returns a warning field (e.g. `backlog_warning`) when the story is not found in `backlog.md` and the new status is not `done`
 - [ ] Existing behaviour for `done` (removal) is unchanged
 - [ ] No silent pass-through — callers can detect the missing-entry condition
+## Notes
+
+<!-- backlog-mcp: 2026-04-13T16:18:03Z -->
+Backlog groomed: this is now the sole active story and top priority. Complete pending implementation of loud missing-backlog signaling for non-done status transitions.
