@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.2.3) — leave blank to auto-bump patch"
+        required: false
 
 permissions:
   contents: write
@@ -19,6 +24,35 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            latest=$(git tag --sort=-v:refname | grep '^v' | head -1)
+            if [ -z "$latest" ]; then
+              echo "tag=v0.1.0" >> $GITHUB_OUTPUT
+            else
+              version=${latest#v}
+              major=$(echo $version | cut -d. -f1)
+              minor=$(echo $version | cut -d. -f2)
+              patch=$(echo $version | cut -d. -f3)
+              patch=$((patch + 1))
+              echo "tag=v${major}.${minor}.${patch}" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Create and push tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
 
       - uses: goreleaser/goreleaser-action@v6
         with:
