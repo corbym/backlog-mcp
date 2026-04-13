@@ -1,4 +1,6 @@
-**/*/.claude
-**/*/.claude/settings*
+**/.claude
+**/.claude/settings*
 .claude/settings.json
 /backlog-mcp
+**/.backlog-mcp.lock
+.backlog-mcp.lock
