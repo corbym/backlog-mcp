@@ -17,6 +17,8 @@
 | [STORY-006](./epic-002-backlog-mcp-dogfood/story-006.md) | Surface loud failure when set_story_status target is not in backlog | in-progress |
 | [STORY-007](./epic-002-backlog-mcp-dogfood/story-007.md) | Add complete_story tool to enforce done lifecycle | done |
 | [STORY-008](./epic-002-backlog-mcp-dogfood/story-008.md) | Add set_acceptance_criteria tool to define story AC | done |
+| [STORY-009](./epic-002-backlog-mcp-dogfood/story-009.md) | Gate complete_story on AC completeness | done |
+| [STORY-010](./epic-002-backlog-mcp-dogfood/story-010.md) | Add check_acceptance_criterion tool | draft |
 
 ## EPIC-003: Agent Estimation — `draft`
 

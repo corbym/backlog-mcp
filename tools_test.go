@@ -29,12 +29,14 @@ const fixtureIndex = `# Requirements Index
 | Story | Title | Status |
 |-------|-------|--------|
 | [STORY-003](./epic-002-inventory/story-003.md) | Item pickup | done |
+| [STORY-004](./epic-002-inventory/story-004.md) | Loot drops | in-progress |
 `
 
 const fixtureBacklog = `# Backlog
 
 1. **STORY-001** — Basic combat
 2. **STORY-002** — Enemy AI *(in-progress)*
+3. **STORY-004** — Loot drops *(in-progress)*
 `
 
 const fixtureStory001 = `# STORY-001: Basic combat
@@ -49,11 +51,31 @@ Initial implementation of the combat system.
 const fixtureStory002 = `# STORY-002: Enemy AI
 
 Enemy pathfinding and attack patterns.
+
+## Acceptance criteria
+
+- [x] Enemy can path to player
+- [x] Enemy attacks when adjacent
 `
 
 const fixtureStory003 = `# STORY-003: Item pickup
 
 Player can pick up items from the ground.
+
+## Acceptance criteria
+
+- [x] Player can pick up items
+`
+
+// fixtureStory004 has partial AC (one checked, one unchecked) for testing incomplete_items gating.
+const fixtureStory004 = `# STORY-004: Loot drops
+
+Enemies drop loot on death.
+
+## Acceptance criteria
+
+- [x] Enemy drops loot on death
+- [ ] Loot respects rarity weights
 `
 
 func newFixture(t *testing.T) (root string, s *server.MCPServer) {
@@ -76,6 +98,7 @@ func newFixture(t *testing.T) (root string, s *server.MCPServer) {
 	write("epic-001-combat-system/story-001.md", fixtureStory001)
 	write("epic-001-combat-system/story-002.md", fixtureStory002)
 	write("epic-002-inventory/story-003.md", fixtureStory003)
+	write("epic-002-inventory/story-004.md", fixtureStory004)
 
 	s = buildServer(&Config{StoriesRoot: root})
 	return root, s
@@ -152,8 +175,8 @@ func unmarshalObject(t *testing.T, result *mcp.CallToolResult) map[string]any {
 func TestListStories_ReturnsAllStories(t *testing.T) {
 	_, s := newFixture(t)
 	rows := unmarshalArray(t, callTool(t, s, "list_stories", map[string]any{}))
-	if len(rows) != 3 {
-		t.Fatalf("expected 3 stories, got %d", len(rows))
+	if len(rows) != 4 {
+		t.Fatalf("expected 4 stories, got %d", len(rows))
 	}
 }
 
@@ -526,14 +549,14 @@ func TestCreateStory_CreatesFileAndRegisters(t *testing.T) {
 func TestCreateStory_AssignsNextID(t *testing.T) {
 	_, s := newFixture(t)
 
-	// Fixture has STORY-001, STORY-002, STORY-003 — next should be STORY-004.
+	// Fixture has STORY-001 through STORY-004 — next should be STORY-005.
 	obj := unmarshalObject(t, callTool(t, s, "create_story", map[string]any{
 		"epic_id": "EPIC-001",
-		"title":   "Fourth story",
+		"title":   "Fifth story",
 	}))
 
-	if obj["story_id"] != "STORY-004" {
-		t.Errorf("expected STORY-004, got %q", obj["story_id"])
+	if obj["story_id"] != "STORY-005" {
+		t.Errorf("expected STORY-005, got %q", obj["story_id"])
 	}
 }
 
@@ -716,6 +739,81 @@ func TestCompleteStory_AlreadyDone_ReturnsError(t *testing.T) {
 		"summary":  "Done again.",
 	})
 	assertError(t, result, "already done")
+}
+
+func TestCompleteStory_PlaceholderAC_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	// STORY-001 has only the placeholder "- [ ] Define acceptance criteria".
+	result := callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-001",
+		"summary":  "Done.",
+	})
+	assertError(t, result, "set_acceptance_criteria")
+}
+
+func TestCompleteStory_AllChecked_Succeeds(t *testing.T) {
+	_, s := newFixture(t)
+	// STORY-002 has all criteria checked — no incomplete_items needed.
+	obj := unmarshalObject(t, callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-002",
+		"summary":  "All criteria met.",
+	}))
+	if obj["story_id"] != "STORY-002" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+	if obj["completed_at"] == "" {
+		t.Error("expected completed_at timestamp")
+	}
+}
+
+func TestCompleteStory_SomeUnchecked_MissingIncompleteItems_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	// STORY-004 has one unchecked criterion — must provide incomplete_items.
+	result := callTool(t, s, "complete_story", map[string]any{
+		"story_id": "STORY-004",
+		"summary":  "Partially done.",
+	})
+	assertError(t, result, "incomplete_items")
+}
+
+func TestCompleteStory_SomeUnchecked_WithIncompleteItems_Succeeds(t *testing.T) {
+	root, s := newFixture(t)
+	// STORY-004 has one unchecked criterion — provide one explanation.
+	obj := unmarshalObject(t, callTool(t, s, "complete_story", map[string]any{
+		"story_id":         "STORY-004",
+		"summary":          "Shipped without rarity weights.",
+		"incomplete_items": []any{"Deferred to STORY-010 — rarity system not yet designed"},
+	}))
+	if obj["story_id"] != "STORY-004" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+
+	// Note must contain both the summary and the incomplete criterion explanation.
+	story, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	body := string(story)
+	if !strings.Contains(body, "Shipped without rarity weights.") {
+		t.Error("summary missing from note")
+	}
+	if !strings.Contains(body, "Incomplete criteria:") {
+		t.Error("incomplete criteria section missing from note")
+	}
+	if !strings.Contains(body, "Loot respects rarity weights") {
+		t.Error("unchecked criterion text missing from note")
+	}
+	if !strings.Contains(body, "Deferred to STORY-010") {
+		t.Error("incomplete_items explanation missing from note")
+	}
+}
+
+func TestCompleteStory_SomeUnchecked_CountMismatch_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+	// STORY-004 has 1 unchecked criterion but we supply 2 explanations.
+	result := callTool(t, s, "complete_story", map[string]any{
+		"story_id":         "STORY-004",
+		"summary":          "Done.",
+		"incomplete_items": []any{"Explanation one", "Explanation two"},
+	})
+	assertError(t, result, "2 entries but there are 1 unchecked")
 }
 
 // ── concurrency ───────────────────────────────────────────────────────────────

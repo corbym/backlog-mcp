@@ -80,6 +80,56 @@ func AppendNote(root, relPath, timestamp, note string) error {
 	return writeAtomic(full, []byte(content))
 }
 
+// ACItem represents a single acceptance criterion and its checked state.
+type ACItem struct {
+	Text    string
+	Checked bool
+}
+
+// ParseAcceptanceCriteria reads the ## Acceptance criteria section of a story
+// file and returns each checklist item with its checked state.
+// Returns nil if the section is not found.
+func ParseAcceptanceCriteria(root, relPath string) ([]ACItem, error) {
+	full := filepath.Join(root, filepath.FromSlash(relPath))
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return nil, fmt.Errorf("reading story for acceptance criteria: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	acStart := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "## Acceptance criteria" {
+			acStart = i
+			break
+		}
+	}
+	if acStart == -1 {
+		return nil, nil
+	}
+
+	acEnd := len(lines)
+	for i := acStart + 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") {
+			acEnd = i
+			break
+		}
+	}
+
+	var items []ACItem
+	for _, line := range lines[acStart+1 : acEnd] {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
+			items = append(items, ACItem{Text: trimmed[6:], Checked: true})
+		case strings.HasPrefix(trimmed, "- [ ] "):
+			items = append(items, ACItem{Text: trimmed[6:], Checked: false})
+		}
+	}
+	return items, nil
+}
+
 // SetAcceptanceCriteria replaces the ## Acceptance criteria section of a story
 // file with the provided list of criteria. Each item becomes a `- [ ] ...` line.
 // The operation is idempotent: calling it again replaces the previous content.

@@ -229,7 +229,10 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── complete_story ───────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("complete_story",
-			mcp.WithDescription("Mark a story done and append a mandatory completion summary note in one call."),
+			mcp.WithDescription("Mark a story done and append a mandatory completion summary note in one call. "+
+				"Validates acceptance criteria before completing: if the AC section contains only the placeholder, "+
+				"completion is blocked. If some criteria are unchecked, the incomplete_items parameter is required "+
+				"(one explanation per unchecked item, in order)."),
 			mcp.WithString("story_id",
 				mcp.Description("Story ID, e.g. STORY-047"),
 				mcp.Required(),
@@ -237,6 +240,10 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			mcp.WithString("summary",
 				mcp.Description("Required completion summary that will be appended to the story notes."),
 				mcp.Required(),
+			),
+			mcp.WithArray("incomplete_items",
+				mcp.Description("Required when some criteria are unchecked: one explanation per unchecked item, in the order they appear in the story."),
+				mcp.Items(map[string]any{"type": "string"}),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -283,6 +290,59 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				return toolError(fmt.Errorf("finding story %s: %w", storyID, err)), nil
 			}
 
+			// Validate acceptance criteria before mutating anything.
+			acItems, err := parser.ParseAcceptanceCriteria(cfg.StoriesRoot, relPath)
+			if err != nil {
+				return toolError(err), nil
+			}
+			isPlaceholder := len(acItems) == 0 ||
+				(len(acItems) == 1 && !acItems[0].Checked && acItems[0].Text == "Define acceptance criteria")
+			if isPlaceholder {
+				return toolError(fmt.Errorf(
+					"acceptance criteria have not been set for %s; call set_acceptance_criteria before completing",
+					storyID,
+				)), nil
+			}
+
+			var unchecked []parser.ACItem
+			for _, item := range acItems {
+				if !item.Checked {
+					unchecked = append(unchecked, item)
+				}
+			}
+
+			var incompleteItems []string
+			if len(unchecked) > 0 {
+				incompleteItems = optionalStringSlice(req, "incomplete_items")
+				if len(incompleteItems) == 0 {
+					uncheckedLines := make([]string, len(unchecked))
+					for i, u := range unchecked {
+						uncheckedLines[i] = "- [ ] " + u.Text
+					}
+					return toolError(fmt.Errorf(
+						"story %s has %d unchecked criterion/criteria; provide incomplete_items with one explanation per unchecked item:\n%s",
+						storyID, len(unchecked), strings.Join(uncheckedLines, "\n"),
+					)), nil
+				}
+				if len(incompleteItems) != len(unchecked) {
+					return toolError(fmt.Errorf(
+						"incomplete_items has %d entries but there are %d unchecked criteria; provide one explanation per unchecked item",
+						len(incompleteItems), len(unchecked),
+					)), nil
+				}
+			}
+
+			// Build the note, appending incomplete-criteria details if needed.
+			var noteBuilder strings.Builder
+			noteBuilder.WriteString(summary)
+			if len(incompleteItems) > 0 {
+				noteBuilder.WriteString("\n\nIncomplete criteria:\n")
+				for i, u := range unchecked {
+					noteBuilder.WriteString(fmt.Sprintf("- [ ] %s: %s\n", u.Text, incompleteItems[i]))
+				}
+			}
+			note := noteBuilder.String()
+
 			if _, err := parser.UpdateStoryStatus(cfg.StoriesRoot, storyID, "done"); err != nil {
 				return toolError(err), nil
 			}
@@ -304,7 +364,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			}
 
 			completedAt := time.Now().UTC().Format(time.RFC3339)
-			if err := parser.AppendNote(cfg.StoriesRoot, relPath, completedAt, summary); err != nil {
+			if err := parser.AppendNote(cfg.StoriesRoot, relPath, completedAt, note); err != nil {
 				return toolError(err), nil
 			}
 
@@ -496,6 +556,32 @@ func toolJSON(v any) (*mcp.CallToolResult, error) {
 
 func toolError(err error) *mcp.CallToolResult {
 	return mcp.NewToolResultError(err.Error())
+}
+
+// optionalStringSlice extracts an optional array-of-strings parameter from a tool request.
+// Returns nil if the parameter is absent or not an array of strings.
+func optionalStringSlice(req mcp.CallToolRequest, key string) []string {
+	args, ok := req.Params.Arguments.(map[string]any)
+	if !ok {
+		return nil
+	}
+	v, ok := args[key]
+	if !ok || v == nil {
+		return nil
+	}
+	raw, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(raw))
+	for _, item := range raw {
+		s, ok := item.(string)
+		if !ok {
+			return nil
+		}
+		result = append(result, s)
+	}
+	return result
 }
 
 // requiredStringSlice extracts a required array-of-strings parameter from a tool request.
