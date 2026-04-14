@@ -2,7 +2,7 @@
 
 ## What this is
 
-A local MCP server written in Go that gives AI agents shared read/write access to a story-based project backlog. The server exposes five tools that let agents list stories, read story content, update status, and append notes — all backed by plain markdown files on disk.
+A local MCP server written in Go that gives AI agents shared read/write access to a story-based project backlog. The server exposes nine tools that let agents create epics and stories, list and read story content, set acceptance criteria, update status, append notes, and complete stories — all backed by plain markdown files on disk.
 
 The filesystem is always the source of truth. The MCP server is a convenience layer on top, never a replacement.
 
@@ -40,7 +40,7 @@ backlog/
   main.go           # entry point: init subcommand + transport switch
   init.go           # scaffold a new backlog directory
   server.go         # MCP server construction, stdio/HTTP runners
-  tools.go          # all 5 tool handlers
+  tools.go          # all 9 tool handlers
   config.go         # config loading, defaults to ./requirements
   parser/
     index.go        # parse + mutate requirements-index.md
@@ -78,7 +78,7 @@ go build -o backlog-mcp .
 
 ---
 
-## The 5 tools
+## The 9 tools
 
 **`list_stories`**  
 Optional filters: `epic_id` (e.g. `EPIC-003`), `status` (e.g. `draft`).  
@@ -96,7 +96,8 @@ Writes atomically to:
 1. `requirements-index.md` — updates status cell in the story's table row
 2. `backlog.md` — if `done`, removes the entry and renumbers; otherwise updates the inline status marker
 
-Returns: `{ story_id, old_status, new_status, backlog_removed, backlog_updated }`.
+Returns: `{ story_id, old_status, new_status, backlog_removed, backlog_updated }`.  
+Prefer `complete_story` over this tool when finishing a story.
 
 **`add_story_note`**  
 Required: `story_id`, `note`.  
@@ -112,13 +113,33 @@ Returns: `{ story_id, appended_at, path }`.
 No inputs.  
 Returns: array of `{ epic_id, title, status, counts: {status: n}, stories: [{story_id, status}] }`.
 
+**`create_epic`**  
+Required: `title`. Optional: `description`.  
+Assigns the next `EPIC-NNN` ID, creates the epic directory and `epic.md`, and registers it in `requirements-index.md`.  
+Returns: `{ epic_id, path }`.
+
+**`create_story`**  
+Required: `epic_id`, `title`. Optional: `description`.  
+Assigns the next `STORY-NNN` ID, writes the story file, and registers it in `requirements-index.md` and `backlog.md` with status `draft`. Story is appended to the end of the backlog.  
+Returns: `{ story_id, path }`.
+
+**`set_acceptance_criteria`**  
+Required: `story_id`, `criteria` (array of strings).  
+Replaces the acceptance criteria section of the story file. Each string becomes a `- [ ] ...` checklist line. Idempotent. Acceptance criteria must be set before `complete_story` can be called.  
+Returns: `{ story_id, criteria_count, path }`.
+
+**`complete_story`**  
+Required: `story_id`, `summary`. Optional: `incomplete_items` (array of strings).  
+Marks a story done and appends a completion summary note in one atomic call. Validates that acceptance criteria have been set and are not the default placeholder. If unchecked criteria exist, `incomplete_items` is required (one explanation per unchecked item, in order).  
+Returns: `{ story_id, completed_at, backlog_removed }`.
+
 ---
 
 ## Design decisions
 
 - **Filesystem scan for paths** — `FindStoryPath` globs `epic-*/story-NNN.md` under the requirements root. More resilient to index drift.
 - **Atomic writes everywhere** — all mutations go through `writeAtomic` (temp file + rename). A crash mid-write cannot corrupt the source of truth.
-- **No locking in PoC** — single-writer assumption. Add a file lock before allowing concurrent agent writes.
+- **File locking** — all mutating tools acquire a file lock (`parser.AcquireLock`) with a 5-second timeout before writing. Platform-specific implementations in `parser/lock_unix.go` and `parser/lock_windows.go`.
 - **Status not in story files** — status lives only in index and backlog. Story files are append-only from the MCP's perspective (`add_story_note`).
 
 ---

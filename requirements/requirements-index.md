@@ -19,6 +19,8 @@
 | [STORY-008](./epic-002-backlog-mcp-dogfood/story-008.md) | Add set_acceptance_criteria tool to define story AC | done |
 | [STORY-009](./epic-002-backlog-mcp-dogfood/story-009.md) | Gate complete_story on AC completeness | done |
 | [STORY-010](./epic-002-backlog-mcp-dogfood/story-010.md) | Add check_acceptance_criterion tool | draft |
+| [STORY-011](./epic-002-backlog-mcp-dogfood/story-011.md) | Document all 9 MCP tools and fix set_acceptance_criteria schema bug | done |
+| [STORY-012](./epic-002-backlog-mcp-dogfood/story-012.md) | Add story_type field to create_story tool | done |
 
 ## EPIC-003: Agent Estimation — `draft`
 

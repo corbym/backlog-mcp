@@ -40,8 +40,9 @@ func CreateEpic(root, title, description string) (epicID string, epicDir string,
 
 // CreateStory assigns the next STORY-NNN ID, writes the story file, and
 // updates requirements-index.md and backlog.md.
+// storyType should be one of: feature, bug, chore, spike.
 // Returns the story ID and the relative file path from root.
-func CreateStory(root, epicID, title, description string) (storyID string, relPath string, err error) {
+func CreateStory(root, epicID, title, description, storyType string) (storyID string, relPath string, err error) {
 	epics, err := ParseIndex(root)
 	if err != nil {
 		return "", "", err
@@ -69,11 +70,11 @@ func CreateStory(root, epicID, title, description string) (storyID string, relPa
 	relPath = fmt.Sprintf("%s/story-%03d.md", epicDir, n)
 	fullPath := filepath.Join(root, filepath.FromSlash(relPath))
 
-	if err := writeAtomic(fullPath, []byte(storyContent(storyID, title, description))); err != nil {
+	if err := writeAtomic(fullPath, []byte(storyContent(storyID, title, description, storyType))); err != nil {
 		return "", "", fmt.Errorf("writing story file: %w", err)
 	}
 
-	if err := appendStoryToIndex(root, epicID, storyID, title, relPath); err != nil {
+	if err := appendStoryToIndex(root, epicID, storyID, title, relPath, storyType); err != nil {
 		return "", "", err
 	}
 
@@ -161,12 +162,12 @@ func epicContent(epicID, title, description string) string {
 	return fmt.Sprintf("# %s: %s\n\n## Goal\n\n%s\n", epicID, title, goal)
 }
 
-func storyContent(storyID, title, description string) string {
+func storyContent(storyID, title, description, storyType string) string {
 	goal := description
 	if goal == "" {
 		goal = "Describe what this story should accomplish."
 	}
-	return fmt.Sprintf("# %s: %s\n\n## Goal\n\n%s\n\n## Acceptance criteria\n\n- [ ] Define acceptance criteria\n", storyID, title, goal)
+	return fmt.Sprintf("# %s: %s\n\n**Type:** %s\n\n## Goal\n\n%s\n\n## Acceptance criteria\n\n- [ ] Define acceptance criteria\n", storyID, title, storyType, goal)
 }
 
 func appendEpicToIndex(root, epicID, title string) error {
@@ -176,11 +177,11 @@ func appendEpicToIndex(root, epicID, title string) error {
 		return fmt.Errorf("reading index: %w", err)
 	}
 	content := strings.TrimRight(string(data), "\n")
-	section := fmt.Sprintf("\n\n## %s: %s — `draft`\n\n| Story | Title | Status |\n|-------|-------|--------|\n", epicID, title)
+	section := fmt.Sprintf("\n\n## %s: %s — `draft`\n\n| Story | Title | Status | Type |\n|-------|-------|--------|------|\n", epicID, title)
 	return writeAtomic(path, []byte(content+section))
 }
 
-func appendStoryToIndex(root, epicID, storyID, title, relPath string) error {
+func appendStoryToIndex(root, epicID, storyID, title, relPath, storyType string) error {
 	path := filepath.Join(root, "requirements-index.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -212,7 +213,7 @@ func appendStoryToIndex(root, epicID, storyID, title, relPath string) error {
 		}
 	}
 
-	newRow := fmt.Sprintf("| [%s](./%s) | %s | draft |", storyID, relPath, title)
+	newRow := fmt.Sprintf("| [%s](./%s) | %s | draft | %s |", storyID, relPath, title, storyType)
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[:lastTableRow+1]...)
 	out = append(out, newRow)

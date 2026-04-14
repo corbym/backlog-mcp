@@ -11,10 +11,11 @@ import (
 
 // Story represents a single story entry from the index.
 type Story struct {
-	ID     string // e.g. STORY-009
-	Title  string
-	Status string
-	EpicID string // e.g. EPIC-003
+	ID        string // e.g. STORY-009
+	Title     string
+	Status    string
+	EpicID    string // e.g. EPIC-003
+	StoryType string // e.g. feature, bug, chore, spike
 }
 
 // Epic represents an epic heading from the index.
@@ -27,7 +28,9 @@ type Epic struct {
 
 var (
 	epicHeadingRe = regexp.MustCompile(`^## (EPIC-\d+): (.+?) — ` + "`" + `(\w[\w-]*)` + "`")
-	storyRowRe    = regexp.MustCompile(`^\|\s*\[([^\]]+)\]\([^)]+\)\s*\|\s*([^|]+?)\s*\|\s*(\w[\w-]*)\s*\|`)
+	// storyRowRe captures: story ID, title, status, and an optional type column.
+	// Rows without a type column (legacy format) default to "feature" in ParseIndex.
+	storyRowRe = regexp.MustCompile(`^\|\s*\[([^\]]+)\]\([^)]+\)\s*\|\s*([^|]+?)\s*\|\s*(\w[\w-]*)\s*\|(?:\s*(\w[\w-]*)\s*\|)?`)
 )
 
 // ParseIndex reads requirements-index.md and returns all epics and their stories.
@@ -60,11 +63,16 @@ func ParseIndex(root string) ([]Epic, error) {
 
 		if current != nil {
 			if m := storyRowRe.FindStringSubmatch(line); m != nil {
+				storyType := "feature"
+				if len(m) > 4 && strings.TrimSpace(m[4]) != "" {
+					storyType = strings.TrimSpace(m[4])
+				}
 				current.Stories = append(current.Stories, Story{
-					ID:     strings.TrimSpace(m[1]),
-					Title:  strings.TrimSpace(m[2]),
-					Status: strings.TrimSpace(m[3]),
-					EpicID: current.ID,
+					ID:        strings.TrimSpace(m[1]),
+					Title:     strings.TrimSpace(m[2]),
+					Status:    strings.TrimSpace(m[3]),
+					EpicID:    current.ID,
+					StoryType: storyType,
 				})
 			}
 		}

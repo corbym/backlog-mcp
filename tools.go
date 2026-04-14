@@ -17,17 +17,21 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── list_stories ────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("list_stories",
-			mcp.WithDescription("List stories from the project index, optionally filtered by epic or status."),
+			mcp.WithDescription("List stories from the project index, optionally filtered by epic, status, or type. Returns an array of {story_id, title, status, epic_id, story_type} objects. With no filters, returns all stories across all epics."),
 			mcp.WithString("epic_id",
-				mcp.Description("Optional epic ID to filter by, e.g. EPIC-003"),
+				mcp.Description("Optional epic ID to filter by (e.g. EPIC-003). When provided, only stories belonging to this epic are returned."),
 			),
 			mcp.WithString("status",
-				mcp.Description("Optional status to filter by, e.g. draft, in-progress, done"),
+				mcp.Description("Optional status to filter by. Valid values: draft, in-progress, done, blocked. When provided, only stories with this status are returned."),
+			),
+			mcp.WithString("story_type",
+				mcp.Description("Optional story type to filter by. Valid values: feature, bug, chore, spike. When provided, only stories of this type are returned."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			epicFilter := strings.ToUpper(optionalString(req, "epic_id"))
 			statusFilter := strings.ToLower(optionalString(req, "status"))
+			typeFilter := strings.ToLower(optionalString(req, "story_type"))
 
 			epics, err := parser.ParseIndex(cfg.StoriesRoot)
 			if err != nil {
@@ -35,10 +39,11 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			}
 
 			type row struct {
-				StoryID string `json:"story_id"`
-				Title   string `json:"title"`
-				Status  string `json:"status"`
-				EpicID  string `json:"epic_id"`
+				StoryID   string `json:"story_id"`
+				Title     string `json:"title"`
+				Status    string `json:"status"`
+				EpicID    string `json:"epic_id"`
+				StoryType string `json:"story_type"`
 			}
 			var results []row
 
@@ -50,11 +55,15 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 					if statusFilter != "" && s.Status != statusFilter {
 						continue
 					}
+					if typeFilter != "" && s.StoryType != typeFilter {
+						continue
+					}
 					results = append(results, row{
-						StoryID: s.ID,
-						Title:   s.Title,
-						Status:  s.Status,
-						EpicID:  s.EpicID,
+						StoryID:   s.ID,
+						Title:     s.Title,
+						Status:    s.Status,
+						EpicID:    s.EpicID,
+						StoryType: s.StoryType,
 					})
 				}
 			}
@@ -66,9 +75,9 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── get_story ────────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("get_story",
-			mcp.WithDescription("Get the full markdown content and metadata for a single story."),
+			mcp.WithDescription("Get the full markdown content and metadata for a single story. Returns {story_id, title, status, epic_id, path, content} where content is the raw markdown of the story file."),
 			mcp.WithString("story_id",
-				mcp.Description("Story ID, e.g. STORY-047"),
+				mcp.Description("Story ID to retrieve, e.g. STORY-047"),
 				mcp.Required(),
 			),
 		),
@@ -114,6 +123,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				result["title"] = meta.Title
 				result["status"] = meta.Status
 				result["epic_id"] = meta.EpicID
+				result["story_type"] = meta.StoryType
 			}
 
 			return toolJSON(result)
@@ -123,13 +133,13 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── set_story_status ─────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("set_story_status",
-			mcp.WithDescription("Update the status of a story in requirements-index.md and backlog.md."),
+			mcp.WithDescription("Update the status of a story in requirements-index.md and backlog.md. When set to 'done', the story is removed from backlog.md entirely and the remaining entries are renumbered. Returns {story_id, old_status, new_status, backlog_removed, backlog_updated}. Prefer complete_story over this tool when finishing a story, as complete_story also enforces acceptance criteria and appends a summary note."),
 			mcp.WithString("story_id",
-				mcp.Description("Story ID, e.g. STORY-047"),
+				mcp.Description("Story ID to update, e.g. STORY-047"),
 				mcp.Required(),
 			),
 			mcp.WithString("status",
-				mcp.Description("New status: draft, in-progress, done, or blocked"),
+				mcp.Description("New status to assign. Must be one of: draft, in-progress, done, blocked"),
 				mcp.Required(),
 			),
 		),
@@ -188,13 +198,13 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── add_story_note ───────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("add_story_note",
-			mcp.WithDescription("Append a timestamped note to a story file. Use to record what was done, decisions made, or blockers."),
+			mcp.WithDescription("Append a timestamped note to a story file. Use to record progress, decisions made, or blockers encountered. Notes are appended under a '## Notes' section with an ISO 8601 timestamp. Returns {story_id, appended_at, path}."),
 			mcp.WithString("story_id",
-				mcp.Description("Story ID, e.g. STORY-047"),
+				mcp.Description("Story ID to annotate, e.g. STORY-047"),
 				mcp.Required(),
 			),
 			mcp.WithString("note",
-				mcp.Description("The note text to append."),
+				mcp.Description("The note text to append. Can be multi-line. Will be stored with a UTC timestamp."),
 				mcp.Required(),
 			),
 		),
@@ -229,20 +239,21 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── complete_story ───────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("complete_story",
-			mcp.WithDescription("Mark a story done and append a mandatory completion summary note in one call. "+
-				"Validates acceptance criteria before completing: if the AC section contains only the placeholder, "+
-				"completion is blocked. If some criteria are unchecked, the incomplete_items parameter is required "+
-				"(one explanation per unchecked item, in order)."),
+			mcp.WithDescription("Mark a story done and append a mandatory completion summary note in one atomic call. "+
+				"Validates acceptance criteria before completing: if the AC section has not been set (contains only the placeholder), "+
+				"completion is blocked — call set_acceptance_criteria first. "+
+				"If some criteria are unchecked, incomplete_items is required with one explanation per unchecked item (in the order they appear). "+
+				"On success, removes the story from backlog.md and returns {story_id, completed_at, backlog_removed}."),
 			mcp.WithString("story_id",
-				mcp.Description("Story ID, e.g. STORY-047"),
+				mcp.Description("Story ID to complete, e.g. STORY-047"),
 				mcp.Required(),
 			),
 			mcp.WithString("summary",
-				mcp.Description("Required completion summary that will be appended to the story notes."),
+				mcp.Description("Completion summary describing what was done. Appended as a timestamped note to the story file."),
 				mcp.Required(),
 			),
 			mcp.WithArray("incomplete_items",
-				mcp.Description("Required when some criteria are unchecked: one explanation per unchecked item, in the order they appear in the story."),
+				mcp.Description("Required when the story has unchecked acceptance criteria. Provide one explanation string per unchecked item, in the order they appear in the story file."),
 				mcp.Items(map[string]any{"type": "string"}),
 			),
 		),
@@ -379,13 +390,13 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── create_epic ──────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("create_epic",
-			mcp.WithDescription("Create a new epic. Assigns the next EPIC-NNN ID, creates the epic directory and epic.md, and registers it in requirements-index.md."),
+			mcp.WithDescription("Create a new epic. Assigns the next EPIC-NNN ID, creates the epic directory and epic.md file, and registers it in requirements-index.md with status draft. Returns {epic_id, path}."),
 			mcp.WithString("title",
-				mcp.Description("Title of the epic"),
+				mcp.Description("Title of the epic, e.g. 'User Authentication'"),
 				mcp.Required(),
 			),
 			mcp.WithString("description",
-				mcp.Description("Optional description / goal for the epic"),
+				mcp.Description("Optional description or goal for the epic. Written into the epic.md file."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -413,17 +424,20 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── create_story ─────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("create_story",
-			mcp.WithDescription("Create a new story under an existing epic. Assigns the next STORY-NNN ID, writes the story file, and registers it in requirements-index.md and backlog.md with status draft."),
+			mcp.WithDescription("Create a new story under an existing epic. Assigns the next STORY-NNN ID, writes the story file, and registers it in requirements-index.md and backlog.md with status draft. The story is appended to the end of the backlog. Returns {story_id, path}."),
 			mcp.WithString("epic_id",
-				mcp.Description("Epic ID to create the story under, e.g. EPIC-003"),
+				mcp.Description("Epic ID the story belongs to, e.g. EPIC-003. The epic must already exist."),
 				mcp.Required(),
 			),
 			mcp.WithString("title",
-				mcp.Description("Title of the story"),
+				mcp.Description("Title of the story, e.g. 'User can reset password'"),
 				mcp.Required(),
 			),
 			mcp.WithString("description",
-				mcp.Description("Optional description / goal for the story"),
+				mcp.Description("Optional description or goal for the story. Written into the story.md file."),
+			),
+			mcp.WithString("story_type",
+				mcp.Description("Type of story. Valid values: feature, bug, chore, spike. Defaults to 'feature' if not provided."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -436,15 +450,24 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			epicID := strings.ToUpper(requiredString(req, "epic_id"))
 			title := requiredString(req, "title")
 			description := optionalString(req, "description")
+			storyType := strings.ToLower(optionalString(req, "story_type"))
+			if storyType == "" {
+				storyType = "feature"
+			}
+			validTypes := map[string]bool{"feature": true, "bug": true, "chore": true, "spike": true}
+			if !validTypes[storyType] {
+				return toolError(fmt.Errorf("invalid story_type %q: must be feature, bug, chore, or spike", storyType)), nil
+			}
 
-			storyID, relPath, err := parser.CreateStory(cfg.StoriesRoot, epicID, title, description)
+			storyID, relPath, err := parser.CreateStory(cfg.StoriesRoot, epicID, title, description, storyType)
 			if err != nil {
 				return toolError(err), nil
 			}
 
 			return toolJSON(map[string]any{
-				"story_id": storyID,
-				"path":     relPath,
+				"story_id":   storyID,
+				"path":       relPath,
+				"story_type": storyType,
 			})
 		},
 	)
@@ -452,9 +475,14 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── set_acceptance_criteria ──────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("set_acceptance_criteria",
-			mcp.WithDescription("Replace the acceptance criteria section of a story file. Pass criteria as an array of strings; each becomes a `- [ ] ...` checklist line. Idempotent: calling again replaces the previous AC entirely."),
+			mcp.WithDescription("Replace the acceptance criteria section of a story file. Each string in the criteria array becomes a `- [ ] ...` checklist line. Idempotent: calling again replaces the previous AC entirely. Acceptance criteria must be set before a story can be completed with complete_story. Returns {story_id, criteria_count, path}."),
 			mcp.WithString("story_id",
-				mcp.Description("Story ID, e.g. STORY-007"),
+				mcp.Description("Story ID to update, e.g. STORY-007"),
+				mcp.Required(),
+			),
+			mcp.WithArray("criteria",
+				mcp.Description("List of acceptance criteria strings. Each entry becomes a checklist item (- [ ] ...) in the story file. Must contain at least one item."),
+				mcp.Items(map[string]any{"type": "string"}),
 				mcp.Required(),
 			),
 		),
@@ -495,7 +523,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── get_index_summary ────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("get_index_summary",
-			mcp.WithDescription("Get a high-level summary of all epics and their story counts by status. Useful for situational awareness without reading every file."),
+			mcp.WithDescription("Get a high-level summary of all epics and their story counts broken down by status. Useful for situational awareness at the start of a session, without reading every file. Returns an array of {epic_id, title, status, counts: {status: n}, stories: [{story_id, status}]}."),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			epics, err := parser.ParseIndex(cfg.StoriesRoot)
