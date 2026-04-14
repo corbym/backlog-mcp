@@ -133,13 +133,15 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── set_story_status ─────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("set_story_status",
-			mcp.WithDescription("Update the status of a story in requirements-index.md and backlog.md. When set to 'done', the story is removed from backlog.md entirely and the remaining entries are renumbered. Returns {story_id, old_status, new_status, backlog_removed, backlog_updated}. Prefer complete_story over this tool when finishing a story, as complete_story also enforces acceptance criteria and appends a summary note."),
+			mcp.WithDescription("Update the status of a story to draft, in-progress, or blocked. "+
+				"To mark a story done, use complete_story instead — it enforces acceptance criteria, appends a summary note, and removes the story from the backlog. "+
+				"Returns {story_id, old_status, new_status, backlog_updated}."),
 			mcp.WithString("story_id",
 				mcp.Description("Story ID to update, e.g. STORY-047"),
 				mcp.Required(),
 			),
 			mcp.WithString("status",
-				mcp.Description("New status to assign. Must be one of: draft, in-progress, done, blocked"),
+				mcp.Description("New status to assign. Must be one of: draft, in-progress, blocked. To mark done, use complete_story."),
 				mcp.Required(),
 			),
 		),
@@ -153,11 +155,14 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			storyID := strings.ToUpper(requiredString(req, "story_id"))
 			newStatus := strings.ToLower(requiredString(req, "status"))
 
+			if newStatus == "done" {
+				return toolError(fmt.Errorf("use complete_story to mark a story done — it enforces acceptance criteria, appends a summary note, and updates the backlog")), nil
+			}
 			validStatuses := map[string]bool{
-				"draft": true, "in-progress": true, "done": true, "blocked": true,
+				"draft": true, "in-progress": true, "blocked": true,
 			}
 			if !validStatuses[newStatus] {
-				return toolError(fmt.Errorf("invalid status %q: must be draft, in-progress, done, or blocked", newStatus)), nil
+				return toolError(fmt.Errorf("invalid status %q: must be draft, in-progress, or blocked", newStatus)), nil
 			}
 
 			// 1. Update requirements-index.md
@@ -166,32 +171,25 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				return toolError(err), nil
 			}
 
-			backlogRemoved := false
+			// 2. Update inline status marker in backlog
 			backlogUpdated := false
-
-			// 2. Backlog handling
-			if newStatus == "done" {
-				// Remove from backlog entirely (per backlog.md rules)
-				if err := parser.RemoveFromBacklog(cfg.StoriesRoot, storyID); err != nil {
-					// Not fatal — story may not be in backlog
-					_ = err
-				} else {
-					backlogRemoved = true
-				}
+			var backlogWarning string
+			if err := parser.UpdateBacklogStatus(cfg.StoriesRoot, storyID, newStatus); err != nil {
+				backlogWarning = err.Error()
 			} else {
-				// Update inline status marker in backlog
-				if err := parser.UpdateBacklogStatus(cfg.StoriesRoot, storyID, newStatus); err == nil {
-					backlogUpdated = true
-				}
+				backlogUpdated = true
 			}
 
-			return toolJSON(map[string]any{
+			resp := map[string]any{
 				"story_id":        storyID,
 				"old_status":      oldStatus,
 				"new_status":      newStatus,
-				"backlog_removed": backlogRemoved,
 				"backlog_updated": backlogUpdated,
-			})
+			}
+			if backlogWarning != "" {
+				resp["backlog_warning"] = backlogWarning
+			}
+			return toolJSON(resp)
 		},
 	)
 

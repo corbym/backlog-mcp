@@ -6,10 +6,10 @@ The server currently assumes a single writer. If two agents call `set_story_stat
 
 ## Acceptance criteria
 
-- [ ] A file-based lock (e.g. `flock` or `.lock` sentinel) is acquired before any write operation
-- [ ] Lock is released after the atomic rename completes
-- [ ] Concurrent writes serialise correctly under test (e.g. two goroutines hammering `set_story_status`)
-- [ ] Lock timeout returns a clear error rather than hanging indefinitely
+- [x] A file-based lock (e.g. `flock` or `.lock` sentinel) is acquired before any write operation
+- [x] Lock is released after the atomic rename completes
+- [x] Concurrent writes serialise correctly under test (e.g. two goroutines hammering `set_story_status`)
+- [x] Lock timeout returns a clear error rather than hanging indefinitely
 ## Notes
 
 <!-- backlog-mcp: 2026-04-13T14:49:53Z -->

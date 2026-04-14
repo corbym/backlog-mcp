@@ -6,14 +6,14 @@ Modify complete_story to validate acceptance criteria before allowing a story to
 
 ## Acceptance criteria
 
-- [ ] complete_story reads the story file and parses the ## Acceptance criteria section before proceeding
-- [ ] If the AC section contains only the placeholder line ('Define acceptance criteria'), completion is blocked with a clear error
-- [ ] If real criteria exist and all are checked (- [x]), completion proceeds as normal with no extra params required
-- [ ] If real criteria exist but some are unchecked (- [ ]), an incomplete_items parameter (array of strings) is required — one explanation per unchecked item
-- [ ] If incomplete_items is required but not provided, completion is blocked with a descriptive error listing the unchecked criteria
-- [ ] The incomplete_items explanations are included in the timestamped note appended to the story file
-- [ ] All existing complete_story tests continue to pass
-- [ ] New tests cover: placeholder-only AC blocks completion, all-checked proceeds, some-unchecked requires incomplete_items, incomplete_items included in note
+- [x] complete_story reads the story file and parses the ## Acceptance criteria section before proceeding
+- [x] If the AC section contains only the placeholder line ('Define acceptance criteria'), completion is blocked with a clear error
+- [x] If real criteria exist and all are checked (- [x]), completion proceeds as normal with no extra params required
+- [x] If real criteria exist but some are unchecked (- [ ]), an incomplete_items parameter (array of strings) is required — one explanation per unchecked item
+- [x] If incomplete_items is required but not provided, completion is blocked with a descriptive error listing the unchecked criteria
+- [x] The incomplete_items explanations are included in the timestamped note appended to the story file
+- [x] All existing complete_story tests continue to pass
+- [x] New tests cover: placeholder-only AC blocks completion, all-checked proceeds, some-unchecked requires incomplete_items, incomplete_items included in note
 
 ## Notes
 

@@ -324,26 +324,13 @@ func TestSetStoryStatus_UpdatesIndexAndBacklog(t *testing.T) {
 	}
 }
 
-func TestSetStoryStatus_Done_RemovesFromBacklog(t *testing.T) {
-	root, s := newFixture(t)
-
-	obj := unmarshalObject(t, callTool(t, s, "set_story_status", map[string]any{
+func TestSetStoryStatus_Done_RedirectsToCompleteStory(t *testing.T) {
+	_, s := newFixture(t)
+	result := callTool(t, s, "set_story_status", map[string]any{
 		"story_id": "STORY-001",
 		"status":   "done",
-	}))
-
-	if obj["backlog_removed"] != true {
-		t.Errorf("expected backlog_removed=true, got %v", obj["backlog_removed"])
-	}
-
-	backlog, _ := os.ReadFile(filepath.Join(root, "backlog.md"))
-	if strings.Contains(string(backlog), "STORY-001") {
-		t.Error("STORY-001 should have been removed from backlog.md")
-	}
-	// Remaining entry should be renumbered to 1.
-	if !strings.Contains(string(backlog), "1. **STORY-002**") {
-		t.Errorf("remaining entry not renumbered:\n%s", backlog)
-	}
+	})
+	assertError(t, result, "complete_story")
 }
 
 func TestSetStoryStatus_InvalidStatus_ReturnsError(t *testing.T) {
@@ -359,9 +346,25 @@ func TestSetStoryStatus_UnknownStory_ReturnsError(t *testing.T) {
 	_, s := newFixture(t)
 	result := callTool(t, s, "set_story_status", map[string]any{
 		"story_id": "STORY-999",
-		"status":   "done",
+		"status":   "blocked",
 	})
 	assertError(t, result, "STORY-999")
+}
+
+func TestSetStoryStatus_MissingFromBacklog_ReturnsWarning(t *testing.T) {
+	// STORY-003 is in the index (done) but not in backlog.md.
+	// Setting it to in-progress should succeed but include backlog_warning.
+	_, s := newFixture(t)
+	obj := unmarshalObject(t, callTool(t, s, "set_story_status", map[string]any{
+		"story_id": "STORY-003",
+		"status":   "in-progress",
+	}))
+	if obj["backlog_updated"] != false {
+		t.Errorf("expected backlog_updated=false, got %v", obj["backlog_updated"])
+	}
+	if obj["backlog_warning"] == nil || obj["backlog_warning"] == "" {
+		t.Errorf("expected backlog_warning to be set, got %v", obj["backlog_warning"])
+	}
 }
 
 // ── add_story_note ────────────────────────────────────────────────────────────

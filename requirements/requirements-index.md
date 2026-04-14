@@ -14,7 +14,7 @@
 | [STORY-003](./epic-002-backlog-mcp-dogfood/story-003.md) | Add create_epic MCP tool | done |
 | [STORY-004](./epic-002-backlog-mcp-dogfood/story-004.md) | Add file locking for concurrent agent writes | done |
 | [STORY-005](./epic-002-backlog-mcp-dogfood/story-005.md) | Fix hardcoded http:// base URL in server.go | done |
-| [STORY-006](./epic-002-backlog-mcp-dogfood/story-006.md) | Surface loud failure when set_story_status target is not in backlog | in-progress |
+| [STORY-006](./epic-002-backlog-mcp-dogfood/story-006.md) | Surface loud failure when set_story_status target is not in backlog | done |
 | [STORY-007](./epic-002-backlog-mcp-dogfood/story-007.md) | Add complete_story tool to enforce done lifecycle | done |
 | [STORY-008](./epic-002-backlog-mcp-dogfood/story-008.md) | Add set_acceptance_criteria tool to define story AC | done |
 | [STORY-009](./epic-002-backlog-mcp-dogfood/story-009.md) | Gate complete_story on AC completeness | done |
