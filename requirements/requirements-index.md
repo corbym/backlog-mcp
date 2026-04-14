@@ -21,11 +21,16 @@
 | [STORY-010](./epic-002-backlog-mcp-dogfood/story-010.md) | Add check_acceptance_criterion tool | done |
 | [STORY-011](./epic-002-backlog-mcp-dogfood/story-011.md) | Document all 9 MCP tools and fix set_acceptance_criteria schema bug | done |
 | [STORY-012](./epic-002-backlog-mcp-dogfood/story-012.md) | Add story_type field to create_story tool | done |
-| [STORY-013](./epic-002-backlog-mcp-dogfood/story-013.md) | Add relative links from backlog.md entries to story and epic files | in-progress | feature |
-| [STORY-014](./epic-002-backlog-mcp-dogfood/story-014.md) | List an epic's stories in the epic markdown file | in-progress | feature |
-| [STORY-015](./epic-002-backlog-mcp-dogfood/story-015.md) | Add groom_epic tool to reconcile epic Stories section with filesystem and index | draft | feature |
+| [STORY-013](./epic-002-backlog-mcp-dogfood/story-013.md) | Add relative links from backlog.md entries to story and epic files | done | feature |
+| [STORY-014](./epic-002-backlog-mcp-dogfood/story-014.md) | List an epic's stories in the epic markdown file | done | feature |
+| [STORY-015](./epic-002-backlog-mcp-dogfood/story-015.md) | Add groom_epic tool to reconcile epic Stories section with filesystem and index | done | feature |
 
 ## EPIC-003: Agent Estimation — `draft`
 
 | Story | Title | Status |
 |-------|-------|--------|
+| [STORY-016](./epic-003-agent-estimation/story-016.md) | Spike: define estimation dimensions and scoring rubric | draft | spike |
+| [STORY-017](./epic-003-agent-estimation/story-017.md) | Capture actuals on story completion | draft | feature |
+| [STORY-018](./epic-003-agent-estimation/story-018.md) | Agent pre-flight self-estimate recorded on story start | draft | feature |
+| [STORY-019](./epic-003-agent-estimation/story-019.md) | Calibration report: compare pre-flight estimates vs actuals | draft | feature |
+| [STORY-020](./epic-003-agent-estimation/story-020.md) | Automate pre-flight scoring on set_story_status in-progress | draft | feature |

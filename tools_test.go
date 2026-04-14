@@ -95,8 +95,10 @@ func newFixture(t *testing.T) (root string, s *server.MCPServer) {
 
 	write("requirements-index.md", fixtureIndex)
 	write("backlog.md", fixtureBacklog)
+	write("epic-001-combat-system/epic-001.md", "# EPIC-001: Combat System\n\n## Goal\n\nCombat mechanics.\n")
 	write("epic-001-combat-system/story-001.md", fixtureStory001)
 	write("epic-001-combat-system/story-002.md", fixtureStory002)
+	write("epic-002-inventory/epic-002.md", "# EPIC-002: Inventory\n\n## Goal\n\nInventory system.\n")
 	write("epic-002-inventory/story-003.md", fixtureStory003)
 	write("epic-002-inventory/story-004.md", fixtureStory004)
 

@@ -578,6 +578,35 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 		},
 	)
 
+	// ── groom_epic ───────────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("groom_epic",
+			mcp.WithDescription("Reconcile the ## Stories section in an epic.md file with the story files on disk and the requirements index. "+
+				"Adds missing entries, removes entries for story files that no longer exist, and refreshes titles and done/undone markers. "+
+				"Returns {epic_id, added, removed, updated, unchanged}."),
+			mcp.WithString("epic_id",
+				mcp.Description("Epic ID to groom, e.g. EPIC-003"),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			epicID := strings.ToUpper(requiredString(req, "epic_id"))
+
+			result, err := parser.GroomEpic(cfg.StoriesRoot, epicID)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(result)
+		},
+	)
+
 	// ── get_index_summary ────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("get_index_summary",
