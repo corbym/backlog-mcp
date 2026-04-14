@@ -9,11 +9,17 @@ import (
 )
 
 var (
-	// matches:  1. **STORY-047** — description *(status)*
-	backlogEntryRe = regexp.MustCompile(`^(\d+\.\s+\*\*)(STORY-\d+)(\*\*\s*—\s*.+?)(\s*\*\([\w-]+\)\*)?(\s*)$`)
+	// backlogEntryRe matches a numbered backlog entry in either format:
+	//   old: 1. **STORY-013** — title *(status)*
+	//   new: 1. [STORY-013](path) ([EPIC-NNN](path)) — title *(status)*
+	// Capture group 1: story ID (e.g. STORY-013)
+	backlogEntryRe = regexp.MustCompile(`^\d+\.\s+(?:\*\*|\[)(STORY-\d+)(?:\*\*|\])`)
 
-	// matches the inline status marker  *(in-progress)*
+	// backlogStatusRe matches the inline status marker *(in-progress)*
 	backlogStatusRe = regexp.MustCompile(`\*\(([\w-]+)\)\*`)
+
+	// leadingNumRe matches the leading ordinal in a backlog entry for renumbering
+	leadingNumRe = regexp.MustCompile(`^\d+\.`)
 )
 
 // BacklogEntry is a parsed line from backlog.md.
@@ -39,10 +45,10 @@ func ParseBacklog(root string) ([]BacklogEntry, error) {
 			continue
 		}
 		e := BacklogEntry{
-			StoryID: m[2],
+			StoryID: m[1],
 			Raw:     line,
 		}
-		if sm := backlogStatusRe.FindStringSubmatch(m[4]); sm != nil {
+		if sm := backlogStatusRe.FindStringSubmatch(line); sm != nil {
 			e.Status = sm[1]
 		}
 		entries = append(entries, e)
@@ -71,12 +77,12 @@ func RemoveFromBacklog(root, storyID string) error {
 			filtered = append(filtered, line)
 			continue
 		}
-		if m[2] == storyID {
+		if m[1] == storyID {
 			// drop this entry
 			continue
 		}
-		// renumber
-		newLine := fmt.Sprintf("%d. **%s%s%s%s", counter, m[2], m[3], m[4], m[5])
+		// renumber: replace leading "N." with "counter." preserving the rest of the line
+		newLine := leadingNumRe.ReplaceAllString(line, fmt.Sprintf("%d.", counter))
 		filtered = append(filtered, newLine)
 		counter++
 	}
@@ -98,12 +104,12 @@ func UpdateBacklogStatus(root, storyID, newStatus string) error {
 
 	for i, line := range lines {
 		m := backlogEntryRe.FindStringSubmatch(line)
-		if m == nil || m[2] != storyID {
+		if m == nil || m[1] != storyID {
 			continue
 		}
 		found = true
-		// rebuild the line without the old status marker
-		base := m[1] + m[2] + m[3]
+		// Strip any existing status marker and trailing whitespace, then append new one
+		base := strings.TrimRight(backlogStatusRe.ReplaceAllString(line, ""), " ")
 		if newStatus != "" {
 			lines[i] = base + " *(" + newStatus + ")*"
 		} else {

@@ -275,11 +275,13 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 
 			found := false
 			status := ""
+			storyEpicID := ""
 			for _, epic := range epics {
 				for _, s := range epic.Stories {
 					if s.ID == storyID {
 						found = true
 						status = s.Status
+						storyEpicID = epic.ID
 						break
 					}
 				}
@@ -370,6 +372,11 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				}
 				backlogRemoved = true
 				break
+			}
+
+			if storyEpicID != "" {
+				// non-fatal: mark the story done in the epic file
+				_ = parser.MarkEpicStoryDone(cfg.StoriesRoot, storyEpicID, storyID)
 			}
 
 			completedAt := time.Now().UTC().Format(time.RFC3339)

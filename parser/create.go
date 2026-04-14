@@ -78,7 +78,11 @@ func CreateStory(root, epicID, title, description, storyType string) (storyID st
 		return "", "", err
 	}
 
-	if err := appendStoryToBacklog(root, storyID, title); err != nil {
+	if err := appendStoryToBacklog(root, epicDir, epicID, storyID, relPath, title); err != nil {
+		return "", "", err
+	}
+
+	if err := appendStoryToEpic(root, epicDir, epicID, storyID, relPath, title); err != nil {
 		return "", "", err
 	}
 
@@ -222,7 +226,9 @@ func appendStoryToIndex(root, epicID, storyID, title, relPath, storyType string)
 	return writeAtomic(path, []byte(strings.Join(out, "\n")))
 }
 
-func appendStoryToBacklog(root, storyID, title string) error {
+// appendStoryToBacklog adds a new story entry to the end of backlog.md with relative
+// links to both the story file and the parent epic file.
+func appendStoryToBacklog(root, epicDir, epicID, storyID, storyRelPath, title string) error {
 	entries, err := ParseBacklog(root)
 	if err != nil {
 		return err
@@ -235,6 +241,95 @@ func appendStoryToBacklog(root, storyID, title string) error {
 		return fmt.Errorf("reading backlog: %w", err)
 	}
 
+	epicNum, _ := parseIDNum(epicID)
+	epicFilePath := fmt.Sprintf("%s/epic-%03d.md", epicDir, epicNum)
+
 	content := strings.TrimRight(string(data), "\n")
-	return writeAtomic(path, []byte(fmt.Sprintf("%s\n%d. **%s** — %s\n", content, nextNum, storyID, title)))
+	entry := fmt.Sprintf("%d. [%s](%s) ([%s](%s)) — %s\n",
+		nextNum, storyID, storyRelPath, epicID, epicFilePath, title)
+	return writeAtomic(path, []byte(content+"\n"+entry))
+}
+
+// appendStoryToEpic adds a new entry to the ## Stories section of the parent epic.md.
+// If the section does not exist yet it is appended to the file.
+func appendStoryToEpic(root, epicDir, epicID, storyID, storyRelPath, title string) error {
+	epicNum, _ := parseIDNum(epicID)
+	epicPath := filepath.Join(root, epicDir, fmt.Sprintf("epic-%03d.md", epicNum))
+
+	data, err := os.ReadFile(epicPath)
+	if err != nil {
+		return fmt.Errorf("reading epic file: %w", err)
+	}
+
+	// Link uses just the filename since epic.md and story.md share the same directory
+	storyFilename := filepath.Base(filepath.FromSlash(storyRelPath))
+	newEntry := fmt.Sprintf("- [ ] [%s](%s) — %s", storyID, storyFilename, title)
+
+	lines := strings.Split(string(data), "\n")
+
+	// Find the ## Stories section
+	storiesIdx := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "## Stories" {
+			storiesIdx = i
+			break
+		}
+	}
+
+	if storiesIdx == -1 {
+		// No section yet — append it
+		trimmed := strings.TrimRight(string(data), "\n")
+		return writeAtomic(epicPath, []byte(trimmed+"\n\n## Stories\n\n"+newEntry+"\n"))
+	}
+
+	// Find end of section: next ## heading or end of file
+	sectionEnd := len(lines)
+	for i := storiesIdx + 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") {
+			sectionEnd = i
+			break
+		}
+	}
+
+	// Insert after the last non-empty line in the section
+	insertAt := storiesIdx + 1
+	for i := storiesIdx + 1; i < sectionEnd; i++ {
+		if strings.TrimSpace(lines[i]) != "" {
+			insertAt = i + 1
+		}
+	}
+
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, lines[:insertAt]...)
+	out = append(out, newEntry)
+	out = append(out, lines[insertAt:]...)
+	return writeAtomic(epicPath, []byte(strings.Join(out, "\n")))
+}
+
+// MarkEpicStoryDone flips a story's entry in the parent epic.md from "- [ ]" to "- [x]".
+// No-op if the entry is not found or already checked.
+func MarkEpicStoryDone(root, epicID, storyID string) error {
+	epicDir, err := FindEpicDir(root, epicID)
+	if err != nil {
+		return err
+	}
+
+	epicNum, _ := parseIDNum(epicID)
+	epicPath := filepath.Join(root, epicDir, fmt.Sprintf("epic-%03d.md", epicNum))
+
+	data, err := os.ReadFile(epicPath)
+	if err != nil {
+		return fmt.Errorf("reading epic file: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	storyLinkRe := regexp.MustCompile(`^- \[ \] \[` + regexp.QuoteMeta(storyID) + `\]`)
+	for i, line := range lines {
+		if storyLinkRe.MatchString(line) {
+			lines[i] = strings.Replace(line, "- [ ] ", "- [x] ", 1)
+			break
+		}
+	}
+
+	return writeAtomic(epicPath, []byte(strings.Join(lines, "\n")))
 }

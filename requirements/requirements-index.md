@@ -21,6 +21,9 @@
 | [STORY-010](./epic-002-backlog-mcp-dogfood/story-010.md) | Add check_acceptance_criterion tool | done |
 | [STORY-011](./epic-002-backlog-mcp-dogfood/story-011.md) | Document all 9 MCP tools and fix set_acceptance_criteria schema bug | done |
 | [STORY-012](./epic-002-backlog-mcp-dogfood/story-012.md) | Add story_type field to create_story tool | done |
+| [STORY-013](./epic-002-backlog-mcp-dogfood/story-013.md) | Add relative links from backlog.md entries to story and epic files | in-progress | feature |
+| [STORY-014](./epic-002-backlog-mcp-dogfood/story-014.md) | List an epic's stories in the epic markdown file | in-progress | feature |
+| [STORY-015](./epic-002-backlog-mcp-dogfood/story-015.md) | Add groom_epic tool to reconcile epic Stories section with filesystem and index | draft | feature |
 
 ## EPIC-003: Agent Estimation — `draft`
 
