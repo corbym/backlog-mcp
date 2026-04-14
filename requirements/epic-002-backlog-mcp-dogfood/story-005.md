@@ -6,7 +6,9 @@
 
 ## Acceptance criteria
 
-- [ ] Base URL scheme is configurable via environment variable (e.g. `BACKLOG_BASE_URL` or `BACKLOG_SCHEME`)
-- [ ] Defaults to `http` for local use, not hardcoded
-- [ ] HTTP/SSE mode works correctly after the change
-- [ ] README documents the new variable
+- [x] HTTP/SSE mode removed entirely — base URL hardcoding is a non-issue
+
+## Notes
+
+<!-- backlog-mcp: 2026-04-14T10:15:15Z -->
+Dropped. HTTP/SSE mode was removed from the codebase entirely (runHTTP, WithBaseURL, and the BACKLOG_TRANSPORT switch are all gone). The hardcoded http:// issue is moot. Original ACs replaced to reflect the actual resolution.
