@@ -520,6 +520,59 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 		},
 	)
 
+	// ── check_acceptance_criterion ───────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("check_acceptance_criterion",
+			mcp.WithDescription("Mark a single acceptance criterion as checked (- [ ] → - [x]) in a story file. "+
+				"Identify the target by criterion_index (0-based) or criterion_text (case-insensitive exact match). "+
+				"Exactly one must be provided. "+
+				"Returns {story_id, criterion, checked, path}. "+
+				"Errors if the story is not found, the criterion is not found, or it is already checked."),
+			mcp.WithString("story_id",
+				mcp.Description("Story ID to update, e.g. STORY-047"),
+				mcp.Required(),
+			),
+			mcp.WithNumber("criterion_index",
+				mcp.Description("0-based index of the criterion to check. Use when you know the position. Mutually exclusive with criterion_text."),
+			),
+			mcp.WithString("criterion_text",
+				mcp.Description("Exact text of the criterion to check (case-insensitive). Use when you know the text. Mutually exclusive with criterion_index."),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			storyID := strings.ToUpper(requiredString(req, "story_id"))
+			criterionIndex := req.GetInt("criterion_index", -1)
+			criterionText := optionalString(req, "criterion_text")
+
+			if criterionIndex < 0 && criterionText == "" {
+				return toolError(fmt.Errorf("must provide either criterion_index or criterion_text")), nil
+			}
+
+			relPath, err := parser.FindStoryPath(cfg.StoriesRoot, storyID)
+			if err != nil {
+				return toolError(fmt.Errorf("story %s not found: %w", storyID, err)), nil
+			}
+
+			checkedText, err := parser.CheckAcceptanceCriterion(cfg.StoriesRoot, relPath, criterionIndex, criterionText)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(map[string]any{
+				"story_id":  storyID,
+				"criterion": checkedText,
+				"checked":   true,
+				"path":      relPath,
+			})
+		},
+	)
+
 	// ── get_index_summary ────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("get_index_summary",

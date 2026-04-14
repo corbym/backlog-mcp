@@ -816,6 +816,119 @@ func TestCompleteStory_SomeUnchecked_CountMismatch_ReturnsError(t *testing.T) {
 	assertError(t, result, "2 entries but there are 1 unchecked")
 }
 
+// ── check_acceptance_criterion ────────────────────────────────────────────────
+
+func TestCheckAcceptanceCriterion_ByIndex_FlipsUnchecked(t *testing.T) {
+	root, s := newFixture(t)
+
+	// STORY-004: index 0 = checked, index 1 = unchecked "Loot respects rarity weights"
+	obj := unmarshalObject(t, callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":        "STORY-004",
+		"criterion_index": float64(1),
+	}))
+
+	if obj["story_id"] != "STORY-004" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+	if obj["criterion"] != "Loot respects rarity weights" {
+		t.Errorf("criterion: got %q", obj["criterion"])
+	}
+	if obj["checked"] != true {
+		t.Errorf("checked: got %v", obj["checked"])
+	}
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+		t.Error("criterion not flipped to [x] on disk")
+	}
+}
+
+func TestCheckAcceptanceCriterion_ByText_FlipsUnchecked(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":       "STORY-004",
+		"criterion_text": "Loot respects rarity weights",
+	}))
+
+	if obj["criterion"] != "Loot respects rarity weights" {
+		t.Errorf("criterion: got %q", obj["criterion"])
+	}
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+		t.Error("criterion not flipped to [x] on disk")
+	}
+}
+
+func TestCheckAcceptanceCriterion_ByText_CaseInsensitive(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":       "STORY-004",
+		"criterion_text": "loot RESPECTS rarity weights",
+	}))
+
+	if obj["criterion"] != "Loot respects rarity weights" {
+		t.Errorf("criterion: got %q", obj["criterion"])
+	}
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+		t.Error("criterion not flipped to [x] on disk")
+	}
+}
+
+func TestCheckAcceptanceCriterion_AlreadyChecked_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	// STORY-004 index 0 is already [x]
+	result := callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":        "STORY-004",
+		"criterion_index": float64(0),
+	})
+	assertError(t, result, "already checked")
+}
+
+func TestCheckAcceptanceCriterion_IndexOutOfRange_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":        "STORY-004",
+		"criterion_index": float64(99),
+	})
+	assertError(t, result, "out of range")
+}
+
+func TestCheckAcceptanceCriterion_TextNotFound_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":       "STORY-004",
+		"criterion_text": "this criterion does not exist",
+	})
+	assertError(t, result, "not found")
+}
+
+func TestCheckAcceptanceCriterion_UnknownStory_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":        "STORY-999",
+		"criterion_index": float64(0),
+	})
+	assertError(t, result, "STORY-999")
+}
+
+func TestCheckAcceptanceCriterion_NeitherProvided_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id": "STORY-004",
+	})
+	assertError(t, result, "criterion_index or criterion_text")
+}
+
 // ── concurrency ───────────────────────────────────────────────────────────────
 
 // TestConcurrentSetStoryStatus_Serialises fires 10 goroutines simultaneously,

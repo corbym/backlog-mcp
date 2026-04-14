@@ -1,12 +1,12 @@
 # Requirements Index
 
-## EPIC-001: Example Epic — `draft`
+## EPIC-001: Example Epic — `done`
 
 | Story | Title | Status |
 |-------|-------|--------|
 | [STORY-001](./epic-001-example/story-001.md) | Example story | done |
 
-## EPIC-002: Backlog MCP Dogfood — `draft`
+## EPIC-002: Backlog MCP Dogfood — `in-progress`
 
 | Story | Title | Status |
 |-------|-------|--------|
@@ -18,7 +18,7 @@
 | [STORY-007](./epic-002-backlog-mcp-dogfood/story-007.md) | Add complete_story tool to enforce done lifecycle | done |
 | [STORY-008](./epic-002-backlog-mcp-dogfood/story-008.md) | Add set_acceptance_criteria tool to define story AC | done |
 | [STORY-009](./epic-002-backlog-mcp-dogfood/story-009.md) | Gate complete_story on AC completeness | done |
-| [STORY-010](./epic-002-backlog-mcp-dogfood/story-010.md) | Add check_acceptance_criterion tool | draft |
+| [STORY-010](./epic-002-backlog-mcp-dogfood/story-010.md) | Add check_acceptance_criterion tool | done |
 | [STORY-011](./epic-002-backlog-mcp-dogfood/story-011.md) | Document all 9 MCP tools and fix set_acceptance_criteria schema bug | done |
 | [STORY-012](./epic-002-backlog-mcp-dogfood/story-012.md) | Add story_type field to create_story tool | done |
 
