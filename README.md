@@ -63,6 +63,14 @@ Commit the `requirements/` folder to your repo. Edit the files to add your own e
 
 The server looks for a `requirements/` directory relative to the working directory it is launched from. Claude Code sets the working directory to the project root, so no configuration is needed.
 
+### Create a plan file
+
+```bash
+./backlog-mcp plan [name]
+```
+
+Creates a new plan scaffold in the `requirements/` directory. Without a name the file is `plan.md`; with a name it is `plan-<name>.md`. If the file already exists a numeric suffix is added (`plan-002.md`, etc.). Open the file and work with your agent to fill it in before creating stories.
+
 **Claude Code config** (`.claude/settings.json` in your project, or `~/.claude/settings.json` globally):
 ```json
 {
@@ -97,8 +105,6 @@ The server looks for a `requirements/` directory relative to the working directo
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BACKLOG_ROOT` | no | `requirements` | Override the path to the requirements directory |
-| `BACKLOG_TRANSPORT` | no | `stdio` | Set to `http` for HTTP/SSE mode |
-| `BACKLOG_HTTP_ADDR` | no | `0.0.0.0:8080` | Listen address for HTTP mode |
 
 ---
 
