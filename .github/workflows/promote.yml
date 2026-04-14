@@ -1,0 +1,54 @@
+name: Promote Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_tag:
+        description: "Source tag to promote from (e.g. v0.1.6)"
+        required: true
+      to_tag:
+        description: "Target tag to promote to (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create alias tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fromTag = '${{ github.event.inputs.from_tag }}';
+            const toTag = '${{ github.event.inputs.to_tag }}';
+
+            // Resolve the commit SHA for from_tag (handles both lightweight and annotated tags)
+            const fromRef = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `tags/${fromTag}`
+            });
+
+            let sha = fromRef.data.object.sha;
+
+            // Annotated tags point to a tag object — dereference to the underlying commit
+            if (fromRef.data.object.type === 'tag') {
+              const tagObj = await github.rest.git.getTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_sha: sha
+              });
+              sha = tagObj.data.object.sha;
+            }
+
+            // Create the new tag pointing to the same commit
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${toTag}`,
+              sha: sha
+            });
+
+            core.info(`Created tag ${toTag} → commit ${sha} (promoted from ${fromTag})`);
