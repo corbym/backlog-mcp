@@ -6,13 +6,13 @@ Ensure all tools have high-quality descriptions and parameter documentation for 
 
 ## Acceptance criteria
 
-- [ ] All 9 tools have descriptions that include what they return
-- [ ] All required parameters are marked required in the schema
-- [ ] set_acceptance_criteria criteria array parameter is present in tool schema
-- [ ] All optional parameters have clear descriptions explaining their purpose
-- [ ] CLAUDE.md documents all 9 tools (not just the original 5)
-- [ ] CLAUDE.md design decisions section reflects current implementation (file locking)
-- [ ] Build passes with no errors
+- [x] All 9 tools have descriptions that include what they return
+- [x] All required parameters are marked required in the schema
+- [x] set_acceptance_criteria criteria array parameter is present in tool schema
+- [x] All optional parameters have clear descriptions explaining their purpose
+- [x] CLAUDE.md documents all 9 tools (not just the original 5)
+- [x] CLAUDE.md design decisions section reflects current implementation (file locking)
+- [x] Build passes with no errors
 
 ## Notes
 

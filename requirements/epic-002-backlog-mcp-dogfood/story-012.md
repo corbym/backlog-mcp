@@ -6,14 +6,14 @@ Add a story_type parameter (feature, bug, chore, spike) to create_story. Store t
 
 ## Acceptance criteria
 
-- [ ] create_story accepts a story_type parameter with valid values: feature, bug, chore, spike
-- [ ] story_type defaults to 'feature' if not provided
-- [ ] story_type is written into the story .md file header
-- [ ] story_type is stored in requirements-index.md alongside the story row
-- [ ] list_stories returns story_type in each result object
-- [ ] list_stories accepts a story_type filter parameter
-- [ ] get_story returns story_type in its result
-- [ ] Build passes with no errors
+- [x] create_story accepts a story_type parameter with valid values: feature, bug, chore, spike
+- [x] story_type defaults to 'feature' if not provided
+- [x] story_type is written into the story .md file header
+- [x] story_type is stored in requirements-index.md alongside the story row
+- [x] list_stories returns story_type in each result object
+- [x] list_stories accepts a story_type filter parameter
+- [x] get_story returns story_type in its result
+- [x] Build passes with no errors
 
 ## Notes
 
