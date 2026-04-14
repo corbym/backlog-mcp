@@ -37,9 +37,10 @@ Status is tracked in `requirements-index.md` (table column) and `backlog.md` (in
 
 ```
 backlog/
-  main.go           # entry point: init subcommand + transport switch
+  main.go           # entry point: init / plan subcommands, stdio server
   init.go           # scaffold a new backlog directory
-  server.go         # MCP server construction, stdio/HTTP runners
+  plan.go           # scaffold a new plan file
+  server.go         # MCP server construction, stdio runner
   tools.go          # all 9 tool handlers
   config.go         # config loading, defaults to ./requirements
   parser/
@@ -58,8 +59,6 @@ backlog/
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BACKLOG_ROOT` | no | `requirements` | Override the path to the requirements directory |
-| `BACKLOG_TRANSPORT` | no | `stdio` | Set to `http` for HTTP/SSE mode |
-| `BACKLOG_HTTP_ADDR` | no | `0.0.0.0:8080` | Listen address for HTTP mode |
 
 ---
 
@@ -72,8 +71,11 @@ go build -o backlog-mcp .
 # Create a new backlog (first time):
 ./backlog-mcp init /path/to/my/backlog
 
+# Create a new plan scaffold:
+./backlog-mcp plan [name]
+
 # Start the server (from the project root):
-./backlog-mcp    # stdio mode (default)
+./backlog-mcp    # stdio mode
 ```
 
 ---
@@ -148,4 +150,3 @@ Returns: `{ story_id, completed_at, backlog_removed }`.
 
 1. `backlog.go` regex assumes exact format `**STORY-NNN** — description`. Any deviation in the actual file will cause entries to be passed through unmodified (silently). Verify against a real backlog entry before trusting it.
 2. `UpdateBacklogStatus` (non-done status changes) silently succeeds if the story isn't in the backlog. Consider making this louder.
-3. `server.go` `WithBaseURL` uses `http://` hardcoded — fix before exposing over HTTPS.
