@@ -326,6 +326,67 @@ func TestSetStoryStatus_UpdatesIndexAndBacklog(t *testing.T) {
 	}
 }
 
+func TestSetStoryStatus_UpdatesStoryMetadataStatusLineWhenPresent(t *testing.T) {
+	root, s := newFixture(t)
+
+	storyPath := filepath.Join(root, "epic-001-combat-system", "story-001.md")
+	if err := os.WriteFile(storyPath, []byte(`# STORY-001: Basic combat
+
+**Type:** feature
+**Status:** in-progress
+
+## Goal
+
+Combat.
+
+## Acceptance criteria
+
+- [ ] Define acceptance criteria
+`), 0o644); err != nil {
+		t.Fatalf("write story fixture: %v", err)
+	}
+
+	obj := unmarshalObject(t, callTool(t, s, "set_story_status", map[string]any{
+		"story_id": "STORY-001",
+		"status":   "draft",
+	}))
+
+	if obj["story_metadata_updated"] != true {
+		t.Errorf("expected story_metadata_updated=true, got %v", obj["story_metadata_updated"])
+	}
+
+	story, _ := os.ReadFile(storyPath)
+	if !strings.Contains(string(story), "**Status:** draft") {
+		t.Error("story markdown status metadata not updated on disk")
+	}
+}
+
+func TestSetStoryStatus_Deferred_UpdatesIndexAndBacklog(t *testing.T) {
+	root, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "set_story_status", map[string]any{
+		"story_id": "STORY-001",
+		"status":   "deferred",
+	}))
+
+	if obj["new_status"] != "deferred" {
+		t.Errorf("new_status: got %q", obj["new_status"])
+	}
+	if obj["backlog_updated"] != true {
+		t.Errorf("expected backlog_updated=true, got %v", obj["backlog_updated"])
+	}
+
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), "| [STORY-001](./epic-001-combat-system/story-001.md) | Basic combat | deferred |") {
+		t.Error("requirements-index.md did not update STORY-001 to deferred")
+	}
+
+	backlog, _ := os.ReadFile(filepath.Join(root, "backlog.md"))
+	if !strings.Contains(string(backlog), "*(deferred)*") {
+		t.Error("backlog.md inline marker not updated to deferred")
+	}
+}
+
 func TestSetStoryStatus_Done_RedirectsToCompleteStory(t *testing.T) {
 	_, s := newFixture(t)
 	result := callTool(t, s, "set_story_status", map[string]any{

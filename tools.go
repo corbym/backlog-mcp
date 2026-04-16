@@ -134,7 +134,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── set_story_status ─────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("set_story_status",
-			mcp.WithDescription("Update the status of a story to draft, in-progress, or blocked. "+
+			mcp.WithDescription("Update the status of a story to draft, in-progress, blocked, or deferred. "+
 				"To mark a story done, use complete_story instead — it enforces acceptance criteria, appends a summary note, and removes the story from the backlog. "+
 				"Returns {story_id, old_status, new_status, backlog_updated}."),
 			mcp.WithString("story_id",
@@ -142,7 +142,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				mcp.Required(),
 			),
 			mcp.WithString("status",
-				mcp.Description("New status to assign. Must be one of: draft, in-progress, blocked. To mark done, use complete_story."),
+				mcp.Description("New status to assign. Must be one of: draft, in-progress, blocked, deferred. To mark done, use complete_story."),
 				mcp.Required(),
 			),
 		),
@@ -160,10 +160,10 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				return toolError(fmt.Errorf("use complete_story to mark a story done — it enforces acceptance criteria, appends a summary note, and updates the backlog")), nil
 			}
 			validStatuses := map[string]bool{
-				"draft": true, "in-progress": true, "blocked": true,
+				"draft": true, "in-progress": true, "blocked": true, "deferred": true,
 			}
 			if !validStatuses[newStatus] {
-				return toolError(fmt.Errorf("invalid status %q: must be draft, in-progress, or blocked", newStatus)), nil
+				return toolError(fmt.Errorf("invalid status %q: must be draft, in-progress, blocked, or deferred", newStatus)), nil
 			}
 
 			// 1. Update requirements-index.md
@@ -181,14 +181,29 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				backlogUpdated = true
 			}
 
+			// 3. If the story markdown has a status metadata line, keep it in sync.
+			storyMetadataUpdated := false
+			var storyMetadataWarning string
+			if relPath, err := parser.FindStoryPath(cfg.StoriesRoot, storyID); err != nil {
+				storyMetadataWarning = err.Error()
+			} else if updated, err := parser.UpdateStoryStatusMetadata(cfg.StoriesRoot, relPath, newStatus); err != nil {
+				storyMetadataWarning = err.Error()
+			} else {
+				storyMetadataUpdated = updated
+			}
+
 			resp := map[string]any{
-				"story_id":        storyID,
-				"old_status":      oldStatus,
-				"new_status":      newStatus,
-				"backlog_updated": backlogUpdated,
+				"story_id":               storyID,
+				"old_status":             oldStatus,
+				"new_status":             newStatus,
+				"backlog_updated":        backlogUpdated,
+				"story_metadata_updated": storyMetadataUpdated,
 			}
 			if backlogWarning != "" {
 				resp["backlog_warning"] = backlogWarning
+			}
+			if storyMetadataWarning != "" {
+				resp["story_metadata_warning"] = storyMetadataWarning
 			}
 			return toolJSON(resp)
 		},

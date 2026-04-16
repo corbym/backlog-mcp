@@ -11,6 +11,11 @@ import (
 // storyPathPattern matches epic-NNN-slug/story-NNN.md
 var storyPathPattern = regexp.MustCompile(`(?i)^epic-\d+[^/]*/story-(\d+)\.md$`)
 
+var (
+	storyStatusBoldRe  = regexp.MustCompile(`^(\*\*Status:\*\*\s*)(\w[\w-]*)\s*$`)
+	storyStatusPlainRe = regexp.MustCompile(`^(Status:\s*)(\w[\w-]*)\s*$`)
+)
+
 // FindStoryPath scans the filesystem under root for a file matching story-NNN.md
 // inside any epic-* directory. Returns the relative path from root.
 func FindStoryPath(root, storyID string) (string, error) {
@@ -263,6 +268,43 @@ func CheckAcceptanceCriterion(root, relPath string, criterionIndex int, criterio
 	lines[targetIdx] = strings.Replace(lines[targetIdx], "- [ ] ", "- [x] ", 1)
 
 	return targetText, writeAtomic(full, []byte(strings.Join(lines, "\n")))
+}
+
+// UpdateStoryStatusMetadata updates a status metadata line in a story markdown file
+// when one exists. Supported formats are:
+//
+//	**Status:** in-progress
+//	Status: in-progress
+//
+// Returns true when a status line was found and rewritten.
+func UpdateStoryStatusMetadata(root, relPath, newStatus string) (bool, error) {
+	full := filepath.Join(root, filepath.FromSlash(relPath))
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return false, fmt.Errorf("reading story for status metadata: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	updated := false
+
+	for i, line := range lines {
+		if m := storyStatusBoldRe.FindStringSubmatch(line); m != nil {
+			lines[i] = m[1] + newStatus
+			updated = true
+			break
+		}
+		if m := storyStatusPlainRe.FindStringSubmatch(line); m != nil {
+			lines[i] = m[1] + newStatus
+			updated = true
+			break
+		}
+	}
+
+	if !updated {
+		return false, nil
+	}
+
+	return true, writeAtomic(full, []byte(strings.Join(lines, "\n")))
 }
 
 // extractNumber returns the zero-padded numeric portion of a story/epic ID.

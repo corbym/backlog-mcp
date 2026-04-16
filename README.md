@@ -71,7 +71,11 @@ The server looks for a `requirements/` directory relative to the working directo
 
 Creates a new plan scaffold in the `requirements/` directory. Without a name the file is `plan.md`; with a name it is `plan-<name>.md`. If the file already exists a numeric suffix is added (`plan-002.md`, etc.). Open the file and work with your agent to fill it in before creating stories.
 
-**Claude Code config** (`.claude/settings.json` in your project, or `~/.claude/settings.json` globally):
+### Configuring your MCP client
+
+Prefer a **local** config file committed to your project root. This scopes the server to the project and means any agent cloning the repo gets the right setup automatically. Only use a global config if you want backlog-mcp available in every project without per-project configuration.
+
+**VS Code / GitHub Copilot** — add `.mcp.json` to your project root:
 ```json
 {
   "mcpServers": {
@@ -81,6 +85,19 @@ Creates a new plan scaffold in the `requirements/` directory. Without a name the
   }
 }
 ```
+
+**Claude Code** — add `.claude/settings.json` to your project root:
+```json
+{
+  "mcpServers": {
+    "backlog-mcp": {
+      "command": "/path/to/backlog-mcp"
+    }
+  }
+}
+```
+
+For a global fallback (applies to every project), place the same config in `~/.claude/settings.json` (Claude Code) or add it to VS Code's user `settings.json` under the `mcp.servers` key (GitHub Copilot). Always prefer the local per-project file.
 
 ---
 
