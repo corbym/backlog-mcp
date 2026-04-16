@@ -4,3 +4,4 @@
 /backlog-mcp
 **/.backlog-mcp.lock
 .backlog-mcp.lock
+.mcp.json

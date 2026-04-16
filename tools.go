@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/corbym/backlog-mcp/parser"
 	"strings"
 	"time"
+
+	"github.com/corbym/backlog-mcp/parser"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -240,7 +241,9 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			mcp.WithDescription("Mark a story done and append a mandatory completion summary note in one atomic call. "+
 				"Validates acceptance criteria before completing: if the AC section has not been set (contains only the placeholder), "+
 				"completion is blocked — call set_acceptance_criteria first. "+
-				"If some criteria are unchecked, incomplete_items is required with one explanation per unchecked item (in the order they appear). "+
+				"IMPORTANT: if a criterion is actually done, mark it [x] in the story file via set_acceptance_criteria BEFORE calling this tool — do not leave it unchecked. "+
+				"If criteria remain unchecked (genuinely not done), incomplete_items is required with one explanation per unchecked item explaining WHY it was not completed (e.g. deferred, out of scope). "+
+				"incomplete_items is for unfinished work only — never use it to confirm completed work. "+
 				"On success, removes the story from backlog.md and returns {story_id, completed_at, backlog_removed}."),
 			mcp.WithString("story_id",
 				mcp.Description("Story ID to complete, e.g. STORY-047"),
@@ -251,7 +254,11 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				mcp.Required(),
 			),
 			mcp.WithArray("incomplete_items",
-				mcp.Description("Required when the story has unchecked acceptance criteria. Provide one explanation string per unchecked item, in the order they appear in the story file."),
+				mcp.Description("Required when the story has unchecked (genuinely unfinished) acceptance criteria. "+
+					"Each string must explain WHY that criterion was not met (e.g. 'Deferred to STORY-010 — rarity system not yet designed'). "+
+					"One entry per unchecked item, in the order they appear. "+
+					"DO NOT use this field to confirm items that are done — if a criterion is done, tick it [x] via set_acceptance_criteria first, then retry. "+
+					"Never prefix entries with 'Done:' — if it is done, it should not appear here at all."),
 				mcp.Items(map[string]any{"type": "string"}),
 			),
 		),
@@ -331,7 +338,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 						uncheckedLines[i] = "- [ ] " + u.Text
 					}
 					return toolError(fmt.Errorf(
-						"story %s has %d unchecked criterion/criteria; provide incomplete_items with one explanation per unchecked item:\n%s",
+						"story %s has %d unchecked criterion/criteria:\n%s\n\nIf these are actually done, mark them [x] via set_acceptance_criteria first, then retry complete_story with no incomplete_items.\nIf they are genuinely not done, provide incomplete_items with one explanation per item explaining WHY it was not completed (not a confirmation that it was).",
 						storyID, len(unchecked), strings.Join(uncheckedLines, "\n"),
 					)), nil
 				}
