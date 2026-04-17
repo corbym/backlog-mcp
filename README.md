@@ -107,13 +107,29 @@ For a global fallback (applies to every project), place the same config in `~/.c
 |------|-------------|
 | `list_stories` | List stories, optionally filtered by `epic_id` or `status` |
 | `get_story` | Get full markdown content and metadata for a story |
-| `set_story_status` | Update story status in index and backlog |
-| `add_story_note` | Append a timestamped note to a story file |
-| `complete_story` | Mark a story done and append a mandatory completion summary in one call |
+| `get_index_summary` | High-level epic/story counts by status |
 | `create_epic` | Create a new epic — assigns next EPIC-NNN ID, writes epic file, registers in index |
 | `create_story` | Create a new story under an epic — assigns next STORY-NNN ID, registers in index and backlog |
+| `set_epic_status` | Update epic lifecycle status with completion and regression guards (see below) |
+| `set_story_status` | Update story status in index and backlog |
 | `set_acceptance_criteria` | Replace the acceptance criteria section of a story (idempotent) |
-| `get_index_summary` | High-level epic/story counts by status |
+| `check_acceptance_criterion` | Tick a single acceptance criterion `[x]` by index or text |
+| `add_story_note` | Append a timestamped note to a story file |
+| `complete_story` | Mark a story done with a mandatory completion summary and acceptance criteria validation |
+| `groom_epic` | Review an epic's stories, surface gaps, and suggest missing work |
+
+### `set_epic_status` guards
+
+Setting status to `done` requires:
+
+1. **`summary`** — a completion note, appended as a timestamped entry to the epic file.
+2. **All stories done** — if any stories are still open the call fails and lists them. Pass `override_incomplete=true` only after the user explicitly confirms the incomplete stories are intentionally omitted.
+
+Moving **backwards** (e.g. `done → in-progress`, `in-progress → draft`) triggers a regression prompt: the agent should offer to create new stories before proceeding. Pass `confirm_regression=true` only if the user explicitly insists on skipping that step. `blocked` and `deferred` are lateral states and can be set freely.
+
+### `complete_story` guards
+
+Acceptance criteria must be set (not the default placeholder) before a story can be completed. Unchecked criteria block completion unless `incomplete_items` is provided with one explanation per unchecked item. Tick done criteria `[x]` via `set_acceptance_criteria` first — do not use `incomplete_items` to confirm work that is actually finished.
 
 ---
 
@@ -146,7 +162,7 @@ For a global fallback (applies to every project), place the same config in `~/.c
 
 **Story files** live at `epic-NNN-slug/story-NNN.md` under `BACKLOG_ROOT`.
 
-**Status values:** `draft`, `in-progress`, `done`, `blocked`
+**Status values:** `draft`, `in-progress`, `done`, `blocked`, `deferred`
 
 ---
 
