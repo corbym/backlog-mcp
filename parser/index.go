@@ -84,6 +84,36 @@ func ParseIndex(root string) ([]Epic, error) {
 	return epics, scanner.Err()
 }
 
+// UpdateEpicStatus updates the status marker in the epic heading line in requirements-index.md.
+// Returns the old status, or an error if the epic is not found.
+func UpdateEpicStatus(root, epicID, newStatus string) (oldStatus string, err error) {
+	path := filepath.Join(root, "requirements-index.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("reading index: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	headingPattern := regexp.MustCompile(
+		`^(## ` + regexp.QuoteMeta(epicID) + `: .+ — ` + "`" + `)(\w[\w-]*)` + "`" + `(.*)$`,
+	)
+
+	found := false
+	for i, line := range lines {
+		if m := headingPattern.FindStringSubmatch(line); m != nil {
+			oldStatus = m[2]
+			lines[i] = m[1] + newStatus + "`" + m[3]
+			found = true
+			break
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("epic %s not found in index", epicID)
+	}
+
+	return oldStatus, writeAtomic(path, []byte(strings.Join(lines, "\n")))
+}
+
 // UpdateStoryStatus updates the status cell for storyID in requirements-index.md.
 // Returns the old status, or an error if the story is not found.
 func UpdateStoryStatus(root, storyID, newStatus string) (oldStatus string, err error) {

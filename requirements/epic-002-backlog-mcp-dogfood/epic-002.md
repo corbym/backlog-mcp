@@ -20,3 +20,4 @@ Build out the full set of MCP tools needed to manage this project's own backlog 
 - [x] [STORY-013](story-013.md) — Add relative links from backlog.md entries to story and epic files
 - [x] [STORY-014](story-014.md) — List an epic's stories in the epic markdown file
 - [x] [STORY-015](story-015.md) — Add groom_epic tool to reconcile epic Stories section with filesystem and index
+- [x] [STORY-021](story-021.md) — Add set_epic_status tool to manage epic lifecycle

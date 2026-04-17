@@ -6,7 +6,7 @@
 |-------|-------|--------|
 | [STORY-001](./epic-001-example/story-001.md) | Example story | done |
 
-## EPIC-002: Backlog MCP Dogfood — `in-progress`
+## EPIC-002: Backlog MCP Dogfood — `done`
 
 | Story | Title | Status |
 |-------|-------|--------|
@@ -24,6 +24,7 @@
 | [STORY-013](./epic-002-backlog-mcp-dogfood/story-013.md) | Add relative links from backlog.md entries to story and epic files | done | feature |
 | [STORY-014](./epic-002-backlog-mcp-dogfood/story-014.md) | List an epic's stories in the epic markdown file | done | feature |
 | [STORY-015](./epic-002-backlog-mcp-dogfood/story-015.md) | Add groom_epic tool to reconcile epic Stories section with filesystem and index | done | feature |
+| [STORY-021](./epic-002-backlog-mcp-dogfood/story-021.md) | Add set_epic_status tool to manage epic lifecycle | done | feature |
 
 ## EPIC-003: Agent Estimation — `draft`
 

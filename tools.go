@@ -629,6 +629,58 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 		},
 	)
 
+	// ── set_epic_status ──────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("set_epic_status",
+			mcp.WithDescription("Update the lifecycle status of an epic. "+
+				"Use this tool to manage the epic's own status — not the status of individual stories within it (use set_story_status for that). "+
+				"Typical progression: draft → in-progress (when the first story starts) → done (when all stories are complete) or deferred (if the epic is postponed). "+
+				"Status meanings: "+
+				"'draft' = epic created but no work started; "+
+				"'in-progress' = actively being worked on; "+
+				"'done' = all stories complete and the epic is closed; "+
+				"'blocked' = progress prevented by an external dependency; "+
+				"'deferred' = postponed indefinitely. "+
+				"Returns {epic_id, old_status, new_status}."),
+			mcp.WithString("epic_id",
+				mcp.Description("Epic ID to update, e.g. EPIC-003"),
+				mcp.Required(),
+			),
+			mcp.WithString("status",
+				mcp.Description("New status to assign. Must be one of: draft, in-progress, done, blocked, deferred."),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			epicID := strings.ToUpper(requiredString(req, "epic_id"))
+			newStatus := strings.ToLower(requiredString(req, "status"))
+
+			validStatuses := map[string]bool{
+				"draft": true, "in-progress": true, "done": true, "blocked": true, "deferred": true,
+			}
+			if !validStatuses[newStatus] {
+				return toolError(fmt.Errorf("invalid status %q: must be draft, in-progress, done, blocked, or deferred", newStatus)), nil
+			}
+
+			oldStatus, err := parser.UpdateEpicStatus(cfg.StoriesRoot, epicID, newStatus)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			return toolJSON(map[string]any{
+				"epic_id":    epicID,
+				"old_status": oldStatus,
+				"new_status": newStatus,
+			})
+		},
+	)
+
 	// ── get_index_summary ────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("get_index_summary",
