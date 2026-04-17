@@ -110,6 +110,20 @@ func FindEpicDir(root, epicID string) (string, error) {
 	return "", fmt.Errorf("directory for %s not found under %s", epicID, root)
 }
 
+// FindEpicFilePath returns the relative path (from root) to the epic's markdown file,
+// e.g. "epic-003-foo/epic-003.md".
+func FindEpicFilePath(root, epicID string) (string, error) {
+	n, err := parseIDNum(epicID)
+	if err != nil {
+		return "", fmt.Errorf("invalid epic ID %q: %w", epicID, err)
+	}
+	epicDir, err := FindEpicDir(root, epicID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s/epic-%03d.md", epicDir, n), nil
+}
+
 // ── internal helpers ─────────────────────────────────────────────────────────
 
 func nextEpicNum(epics []Epic) int {

@@ -641,6 +641,9 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				"'done' = all stories complete and the epic is closed; "+
 				"'blocked' = progress prevented by an external dependency; "+
 				"'deferred' = postponed indefinitely. "+
+				"Guards: "+
+				"(1) Setting 'done' requires a summary and checks all stories are done. If any are not done, the call fails — set override_incomplete=true only after the user explicitly confirms this is acceptable. "+
+				"(2) Moving backwards (e.g. done → in-progress, in-progress → draft) asks you to create new stories to justify the regression first. Set confirm_regression=true only if the user explicitly insists on skipping story creation. "+
 				"Returns {epic_id, old_status, new_status}."),
 			mcp.WithString("epic_id",
 				mcp.Description("Epic ID to update, e.g. EPIC-003"),
@@ -649,6 +652,15 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			mcp.WithString("status",
 				mcp.Description("New status to assign. Must be one of: draft, in-progress, done, blocked, deferred."),
 				mcp.Required(),
+			),
+			mcp.WithString("summary",
+				mcp.Description("Required when setting status to 'done'. Describes what was accomplished by this epic. Appended as a timestamped note to the epic file."),
+			),
+			mcp.WithBoolean("override_incomplete",
+				mcp.Description("Set to true to mark the epic 'done' even when some stories are not done. Only set after the user explicitly confirms the incomplete stories are intentionally omitted."),
+			),
+			mcp.WithBoolean("confirm_regression",
+				mcp.Description("Set to true to allow a backwards status transition (e.g. done → in-progress) without first creating new stories. Only set if the user explicitly insists on skipping story creation."),
 			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -660,6 +672,9 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 
 			epicID := strings.ToUpper(requiredString(req, "epic_id"))
 			newStatus := strings.ToLower(requiredString(req, "status"))
+			summary := strings.TrimSpace(optionalString(req, "summary"))
+			overrideIncomplete := req.GetBool("override_incomplete", false)
+			confirmRegression := req.GetBool("confirm_regression", false)
 
 			validStatuses := map[string]bool{
 				"draft": true, "in-progress": true, "done": true, "blocked": true, "deferred": true,
@@ -668,9 +683,68 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				return toolError(fmt.Errorf("invalid status %q: must be draft, in-progress, done, blocked, or deferred", newStatus)), nil
 			}
 
-			oldStatus, err := parser.UpdateEpicStatus(cfg.StoriesRoot, epicID, newStatus)
+			epics, err := parser.ParseIndex(cfg.StoriesRoot)
 			if err != nil {
 				return toolError(err), nil
+			}
+
+			var targetEpic *parser.Epic
+			for i := range epics {
+				if epics[i].ID == epicID {
+					targetEpic = &epics[i]
+					break
+				}
+			}
+			if targetEpic == nil {
+				return toolError(fmt.Errorf("epic %s not found in index", epicID)), nil
+			}
+
+			oldStatus := targetEpic.Status
+
+			// Guard: require summary and check story completion when marking done.
+			if newStatus == "done" {
+				if summary == "" {
+					return toolError(fmt.Errorf("summary is required when setting status to 'done'")), nil
+				}
+				if !overrideIncomplete {
+					var notDone []string
+					for _, s := range targetEpic.Stories {
+						if s.Status != "done" {
+							notDone = append(notDone, fmt.Sprintf("  - %s (%s): %s", s.ID, s.Status, s.Title))
+						}
+					}
+					if len(notDone) > 0 {
+						return toolError(fmt.Errorf(
+							"%s has %d story/stories not yet done:\n%s\n\nComplete them first, or set override_incomplete=true if the user has confirmed these are intentionally omitted.",
+							epicID, len(notDone), strings.Join(notDone, "\n"),
+						)), nil
+					}
+				}
+			}
+
+			// Guard: prompt to add stories before allowing a backwards transition.
+			statusRank := map[string]int{"draft": 0, "in-progress": 1, "done": 2}
+			oldRank, oldRanked := statusRank[oldStatus]
+			newRank, newRanked := statusRank[newStatus]
+			if oldRanked && newRanked && oldRank > newRank && !confirmRegression {
+				return toolError(fmt.Errorf(
+					"%s is moving backwards from '%s' to '%s'. "+
+						"Please create new stories for the remaining work first, then call set_epic_status again. "+
+						"Set confirm_regression=true to proceed without adding stories if the user explicitly insists.",
+					epicID, oldStatus, newStatus,
+				)), nil
+			}
+
+			if _, err := parser.UpdateEpicStatus(cfg.StoriesRoot, epicID, newStatus); err != nil {
+				return toolError(err), nil
+			}
+
+			if summary != "" {
+				epicRelPath, err := parser.FindEpicFilePath(cfg.StoriesRoot, epicID)
+				if err == nil {
+					ts := time.Now().UTC().Format(time.RFC3339)
+					_ = parser.AppendNote(cfg.StoriesRoot, epicRelPath, ts, summary)
+				}
 			}
 
 			return toolJSON(map[string]any{
