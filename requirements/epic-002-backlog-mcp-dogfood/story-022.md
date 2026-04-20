@@ -18,3 +18,8 @@ Add three new MCP tools to reduce token overhead: bulk_update_acceptance_criteri
 - [ ] All three tools are registered in server.go and documented in AGENTS.md
 - [ ] All writes use the atomic write pattern (temp file + rename)
 - [ ] Tests exist for all three new tools
+
+## Notes
+
+<!-- backlog-mcp: 2026-04-20T22:14:26Z -->
+PR #7: Copilot/story 022 add bulk update tools
