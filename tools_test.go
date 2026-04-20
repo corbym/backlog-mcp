@@ -208,7 +208,7 @@ func extractACID(body, text string) string {
 		}
 		candidate := rest[:end]
 		// Must have exactly 3 dashes: AC - STORY - NNN - XXXXXXXX
-		if strings.Count(candidate, "-") >= 3 {
+		if strings.Count(candidate, "-") == 3 {
 			return candidate
 		}
 	}
