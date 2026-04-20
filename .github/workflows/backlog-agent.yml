@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
 
 jobs:
   update-backlog:
@@ -22,48 +21,15 @@ jobs:
         id: install
         uses: ./.github/actions/install
 
-      - name: Write MCP config
-        env:
-          BINARY_PATH: ${{ steps.install.outputs.binary-path }}
-        run: |
-          cat > .mcp.json <<EOF
-          {
-            "mcpServers": {
-              "backlog-mcp": {
-                "command": "$BINARY_PATH",
-                "env": {
-                  "BACKLOG_ROOT": "requirements"
-                }
-              }
-            }
-          }
-          EOF
-
       - name: Run backlog agent
-        uses: anthropics/claude-code-action@beta
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-4-6
-          prompt: |
-            You are a backlog maintenance agent. A pull request event has just fired.
-
-            PR context:
-            - Number: #${{ github.event.pull_request.number }}
-            - Title: ${{ github.event.pull_request.title }}
-            - Branch: ${{ github.head_ref }}
-            - Base: ${{ github.base_ref }}
-            - Event: ${{ github.event.action }}
-            - Description: ${{ github.event.pull_request.body }}
-
-            Steps:
-            1. Run `git diff --name-only origin/${{ github.base_ref }}...HEAD` to see which files changed.
-            2. Call `list_stories` to fetch all current stories.
-            3. Identify which stories this PR relates to. Check the PR title, branch name, and description for explicit story IDs (e.g. STORY-042). If none are found, infer from keywords and changed file paths. If you cannot confidently match any story, stop — do nothing.
-            4. For each matched story:
-               a. If the event is `opened` and the story status is `draft`, call `set_story_status` to set it to `in-progress`.
-               b. Call `add_story_note` to append a note containing the PR number and a one-line summary of what the PR does.
-            5. Never set story status to `done` on an open PR.
-            6. Never create or delete stories.
+        env:
+          BACKLOG_MCP_BIN: ${{ steps.install.outputs.binary-path }}
+          BACKLOG_ROOT: requirements
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_ACTION: ${{ github.event.action }}
+        run: python3 .github/scripts/backlog_agent.py
 
       - name: Commit backlog changes
         run: |
