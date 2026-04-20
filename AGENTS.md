@@ -39,3 +39,12 @@ Plans live in `requirements/plan*.md`. They describe overall project goals and d
 - Use plans to decide what stories to create and how to order the backlog
 - Plans never reference specific stories — keep that relationship one-way (stories may reference plan sections, not the other way around)
 - Never edit a plan to add story references or implementation detail — plans are for goals and intent, not execution tracking
+
+## PR Agent Behaviour
+
+- The agent runs automatically on PRs via GitHub Actions (`.github/workflows/backlog-agent.yml`), triggered on `opened` and `synchronize` events
+- It reads the PR title, description, and branch name to infer which stories are affected — explicit story IDs (e.g. `STORY-042`) in the title or branch name are the most reliable signal; without them the agent infers from context
+- It may update story status to `in-progress` if the PR is opened and the story is currently `draft`
+- It may append a note to the relevant story with the PR number and a one-line summary of the PR's purpose
+- It must never set story status to `done` on an open PR — `done` is only set when work is merged and complete
+- It must never create or delete stories, only update existing ones
