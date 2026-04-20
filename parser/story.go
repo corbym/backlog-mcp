@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // storyPathPattern matches epic-NNN-slug/story-NNN.md
@@ -87,8 +89,69 @@ func AppendNote(root, relPath, timestamp, note string) error {
 
 // ACItem represents a single acceptance criterion and its checked state.
 type ACItem struct {
+	ID      string // AC-STORY-NNN-XXXXXXXX, empty if not yet assigned
 	Text    string
 	Checked bool
+}
+
+// acIDRe matches the ID prefix "AC-STORY-NNN-XXXXXXXX: " at the start of a
+// criterion's text part (after the "- [ ] " or "- [x] " marker).
+var acIDRe = regexp.MustCompile(`^(AC-[A-Z]+-\d+-[0-9a-fA-F]{8}): (.*)$`)
+
+// newACID generates a fresh AC criterion ID for the given storyID.
+// Format: AC-STORY-NNN-XXXXXXXX where XXXXXXXX is the first 8 hex chars of a
+// random UUID v4.
+func newACID(storyID string) string {
+	return fmt.Sprintf("AC-%s-%s", storyID, uuid.New().String()[:8])
+}
+
+// storyIDFromRelPath derives "STORY-NNN" from a relative path such as
+// "epic-001-combat-system/story-001.md". Returns "" if the path does not match.
+func storyIDFromRelPath(relPath string) string {
+	base := filepath.Base(filepath.FromSlash(relPath))
+	if !strings.HasPrefix(base, "story-") || !strings.HasSuffix(base, ".md") {
+		return ""
+	}
+	num := base[len("story-") : len(base)-len(".md")]
+	return "STORY-" + num
+}
+
+// parseACText splits "AC-STORY-042-a3f9b2c1: User can log in" into (id, text).
+// If no recognised ID prefix is present, returns ("", fullText).
+func parseACText(fullText string) (id, text string) {
+	if m := acIDRe.FindStringSubmatch(fullText); m != nil {
+		return m[1], m[2]
+	}
+	return "", fullText
+}
+
+// assignMissingIDs adds AC IDs to any criterion lines in the AC section that do
+// not already have one. lines is the full file split by newline; acStart and
+// acEnd delimit the lines belonging to the AC section (exclusive of the heading
+// at acStart). storyID is used to construct the ID prefix. The slice is mutated
+// in place.
+func assignMissingIDs(lines []string, acStart, acEnd int, storyID string) {
+	if storyID == "" {
+		return
+	}
+	for i, line := range lines[acStart+1 : acEnd] {
+		trimmed := strings.TrimSpace(line)
+		var fullText, prefix string
+		switch {
+		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
+			fullText = trimmed[6:]
+			prefix = trimmed[:6]
+		case strings.HasPrefix(trimmed, "- [ ] "):
+			fullText = trimmed[6:]
+			prefix = "- [ ] "
+		default:
+			continue
+		}
+		id, text := parseACText(fullText)
+		if id == "" {
+			lines[acStart+1+i] = prefix + newACID(storyID) + ": " + text
+		}
+	}
 }
 
 // ParseAcceptanceCriteria reads the ## Acceptance criteria section of a story
@@ -127,9 +190,11 @@ func ParseAcceptanceCriteria(root, relPath string) ([]ACItem, error) {
 		trimmed := strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
-			items = append(items, ACItem{Text: trimmed[6:], Checked: true})
+			id, text := parseACText(trimmed[6:])
+			items = append(items, ACItem{ID: id, Text: text, Checked: true})
 		case strings.HasPrefix(trimmed, "- [ ] "):
-			items = append(items, ACItem{Text: trimmed[6:], Checked: false})
+			id, text := parseACText(trimmed[6:])
+			items = append(items, ACItem{ID: id, Text: text, Checked: false})
 		}
 	}
 	return items, nil
@@ -169,11 +234,47 @@ func SetAcceptanceCriteria(root, relPath string, criteria []string) error {
 		}
 	}
 
-	// Build the replacement section.
+	// Build the replacement section, preserving existing IDs and assigning new
+	// ones to any criterion that does not already carry an ID.
+	storyID := storyIDFromRelPath(relPath)
+
+	// Map existing criterion text → ID so we can reuse IDs for unchanged criteria.
+	existingIDs := make(map[string]string)
+	for _, line := range lines[acStart+1 : acEnd] {
+		trimmed := strings.TrimSpace(line)
+		var fullText string
+		switch {
+		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
+			fullText = trimmed[6:]
+		case strings.HasPrefix(trimmed, "- [ ] "):
+			fullText = trimmed[6:]
+		default:
+			continue
+		}
+		if id, text := parseACText(fullText); id != "" {
+			existingIDs[text] = id
+		}
+	}
+
 	replacement := make([]string, 0, len(criteria)+2)
 	replacement = append(replacement, "## Acceptance criteria", "")
 	for _, c := range criteria {
-		replacement = append(replacement, "- [ ] "+c)
+		// The caller may pass the criterion with or without an ID prefix.
+		existingID, text := parseACText(c)
+		if existingID == "" {
+			// No ID in the input — look for a previously assigned one.
+			text = c
+			if id, ok := existingIDs[text]; ok {
+				existingID = id
+			} else if storyID != "" {
+				existingID = newACID(storyID)
+			}
+		}
+		if existingID != "" {
+			replacement = append(replacement, "- [ ] "+existingID+": "+text)
+		} else {
+			replacement = append(replacement, "- [ ] "+text)
+		}
 	}
 	replacement = append(replacement, "")
 
@@ -229,9 +330,11 @@ func CheckAcceptanceCriterion(root, relPath string, criterionIndex int, criterio
 		trimmed := strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
-			acLines = append(acLines, acLine{lineIdx: acStart + 1 + i, item: ACItem{Text: trimmed[6:], Checked: true}})
+			id, text := parseACText(trimmed[6:])
+			acLines = append(acLines, acLine{lineIdx: acStart + 1 + i, item: ACItem{ID: id, Text: text, Checked: true}})
 		case strings.HasPrefix(trimmed, "- [ ] "):
-			acLines = append(acLines, acLine{lineIdx: acStart + 1 + i, item: ACItem{Text: trimmed[6:], Checked: false}})
+			id, text := parseACText(trimmed[6:])
+			acLines = append(acLines, acLine{lineIdx: acStart + 1 + i, item: ACItem{ID: id, Text: text, Checked: false}})
 		}
 	}
 
@@ -250,7 +353,10 @@ func CheckAcceptanceCriterion(root, relPath string, criterionIndex int, criterio
 		targetText = acLines[criterionIndex].item.Text
 	} else {
 		for _, ac := range acLines {
-			if strings.EqualFold(ac.item.Text, criterionText) {
+			// Match by ID (exact, case-insensitive) or by text (case-insensitive).
+			matchByID := ac.item.ID != "" && strings.EqualFold(ac.item.ID, criterionText)
+			matchByText := strings.EqualFold(ac.item.Text, criterionText)
+			if matchByID || matchByText {
 				if ac.item.Checked {
 					return "", fmt.Errorf("criterion %q is already checked", ac.item.Text)
 				}
@@ -266,6 +372,9 @@ func CheckAcceptanceCriterion(root, relPath string, criterionIndex int, criterio
 
 	// Flip - [ ] to - [x] on the target line.
 	lines[targetIdx] = strings.Replace(lines[targetIdx], "- [ ] ", "- [x] ", 1)
+
+	// Lazily assign IDs to any criteria that do not have one yet.
+	assignMissingIDs(lines, acStart, acEnd, storyIDFromRelPath(relPath))
 
 	return targetText, writeAtomic(full, []byte(strings.Join(lines, "\n")))
 }
@@ -307,12 +416,15 @@ func UpdateStoryStatusMetadata(root, relPath, newStatus string) (bool, error) {
 	return true, writeAtomic(full, []byte(strings.Join(lines, "\n")))
 }
 
-// PatchAcceptanceCriteria updates the checked state of individual acceptance criteria
-// by exact text match. Only criteria present in the updates map are modified; all
-// others are left unchanged.
+// PatchAcceptanceCriteria updates the checked state of individual acceptance
+// criteria. Criteria may be identified by their AC ID (e.g. "AC-STORY-042-a3f9b2c1")
+// or by exact text match; ID is preferred when both would match. Only criteria
+// present in the updates map are modified; all others are left unchanged.
 //
-// If any key in updates does not match any criterion text exactly, the function
-// returns the list of unmatched keys and leaves the file unchanged.
+// If any key in updates does not match any criterion (by ID or text), the
+// function returns the list of unmatched keys and leaves the file unchanged.
+// On a successful write, IDs are lazily assigned to any criteria that did not
+// already have one.
 func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (notFound []string, err error) {
 	full := filepath.Join(root, filepath.FromSlash(relPath))
 	data, err := os.ReadFile(full)
@@ -341,35 +453,55 @@ func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (not
 		}
 	}
 
-	// Build a map from criterion text to line index within the AC section.
+	// Build maps from criterion text and ID to line metadata.
 	type acEntry struct {
 		lineIdx int
 		checked bool
 	}
 	acByText := make(map[string]acEntry)
+	acByID := make(map[string]acEntry)
 	for i, line := range lines[acStart+1 : acEnd] {
 		trimmed := strings.TrimSpace(line)
+		var fullText string
+		var checked bool
 		switch {
 		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
-			acByText[trimmed[6:]] = acEntry{lineIdx: acStart + 1 + i, checked: true}
+			fullText = trimmed[6:]
+			checked = true
 		case strings.HasPrefix(trimmed, "- [ ] "):
-			acByText[trimmed[6:]] = acEntry{lineIdx: acStart + 1 + i, checked: false}
+			fullText = trimmed[6:]
+			checked = false
+		default:
+			continue
+		}
+		id, text := parseACText(fullText)
+		entry := acEntry{lineIdx: acStart + 1 + i, checked: checked}
+		acByText[text] = entry
+		if id != "" {
+			acByID[id] = entry
 		}
 	}
 
-	// Validate that all requested criteria exist.
-	for text := range updates {
-		if _, ok := acByText[text]; !ok {
-			notFound = append(notFound, text)
+	// Validate that all requested criteria exist (by ID or by text).
+	for key := range updates {
+		_, byID := acByID[key]
+		_, byText := acByText[key]
+		if !byID && !byText {
+			notFound = append(notFound, key)
 		}
 	}
 	if len(notFound) > 0 {
 		return notFound, fmt.Errorf("criterion/criteria not found: %s", strings.Join(notFound, ", "))
 	}
 
-	// Apply updates.
-	for text, wantChecked := range updates {
-		entry := acByText[text]
+	// Apply updates, preferring ID match over text match.
+	for key, wantChecked := range updates {
+		var entry acEntry
+		if e, ok := acByID[key]; ok {
+			entry = e
+		} else {
+			entry = acByText[key]
+		}
 		if wantChecked && !entry.checked {
 			lines[entry.lineIdx] = strings.Replace(lines[entry.lineIdx], "- [ ] ", "- [x] ", 1)
 		} else if !wantChecked && entry.checked {
@@ -379,6 +511,9 @@ func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (not
 			}
 		}
 	}
+
+	// Lazily assign IDs to any criteria that do not have one yet.
+	assignMissingIDs(lines, acStart, acEnd, storyIDFromRelPath(relPath))
 
 	return nil, writeAtomic(full, []byte(strings.Join(lines, "\n")))
 }
