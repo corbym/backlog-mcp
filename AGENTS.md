@@ -24,6 +24,7 @@ Project stories and epics live in `requirements/`. Use the backlog-mcp MCP tools
 - Always call `complete_story` when you finish work on a story (do not use `set_story_status` + `add_story_note` separately)
 - Use `add_story_note` to record decisions, blockers, or progress — never edit story files directly
 - After `create_story`, immediately call `set_acceptance_criteria` with a concrete list of criteria before beginning implementation — a story with only the placeholder AC is not ready to implement
+- Branch names must include the story ID (e.g. `copilot/STORY-022-bulk-update-tools` or `chore/STORY-022-description`). Never start implementation on a branch without a story — create the story first, then branch.
 
 **Testing (mandatory)**
 

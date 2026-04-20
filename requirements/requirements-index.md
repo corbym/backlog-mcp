@@ -25,6 +25,7 @@
 | [STORY-014](./epic-002-backlog-mcp-dogfood/story-014.md) | List an epic's stories in the epic markdown file | done | feature |
 | [STORY-015](./epic-002-backlog-mcp-dogfood/story-015.md) | Add groom_epic tool to reconcile epic Stories section with filesystem and index | done | feature |
 | [STORY-021](./epic-002-backlog-mcp-dogfood/story-021.md) | Add set_epic_status tool to manage epic lifecycle | done | feature |
+| [STORY-022](./epic-002-backlog-mcp-dogfood/story-022.md) | Add bulk update tools for stories, epics, and acceptance criteria | in-progress | feature |
 
 ## EPIC-003: Agent Estimation — `draft`
 
