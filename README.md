@@ -75,12 +75,13 @@ Creates a new plan scaffold in the `requirements/` directory. Without a name the
 
 Prefer a **local** config file committed to your project root. This scopes the server to the project and means any agent cloning the repo gets the right setup automatically. Only use a global config if you want backlog-mcp available in every project without per-project configuration.
 
-**VS Code / GitHub Copilot** — add `.mcp.json` to your project root:
+**VS Code / GitHub Copilot** — add `.vscode/mcp.json` to your project root:
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "backlog-mcp": {
-      "command": "/path/to/backlog-mcp"
+      "command": "/path/to/backlog-mcp",
+      "type": "stdio"
     }
   }
 }
@@ -163,6 +164,68 @@ Acceptance criteria must be set (not the default placeholder) before a story can
 **Story files** live at `epic-NNN-slug/story-NNN.md` under `BACKLOG_ROOT`.
 
 **Status values:** `draft`, `in-progress`, `done`, `blocked`, `deferred`
+
+---
+
+## Automated PR backlog agent
+
+A GitHub Actions workflow is included that automatically updates story statuses and appends notes when pull requests are opened or updated. It requires no API keys — only the standard `GITHUB_TOKEN`.
+
+### How it works
+
+On every `pull_request` event (`opened`, `synchronize`) the workflow:
+
+1. Builds the `backlog-mcp` binary from source.
+2. Scans the PR title and branch name for `STORY-NNN` IDs.
+3. For each matched story, sets status to `in-progress` (if it was `draft` and the PR was just opened) and appends a timestamped note with the PR number and title.
+4. Commits any changed files under `requirements/` back to the PR branch.
+
+### Setting it up in your repository
+
+Copy these three files into your repo:
+
+```
+.github/
+  actions/
+    install/
+      action.yml          # composite action — builds the binary
+  scripts/
+    backlog_agent.py      # deterministic MCP client (Python 3, stdlib only)
+  workflows/
+    backlog-agent.yml     # the workflow
+```
+
+The files are in the [corbym/backlog-mcp](https://github.com/corbym/backlog-mcp) repository. No secrets or additional configuration are required beyond a `requirements/` folder already being present.
+
+### Branch and PR naming
+
+The agent matches stories by `STORY-NNN` ID. Include the ID in your branch name or PR title:
+
+```
+story-042-short-description          # branch
+STORY-042: Short description         # PR title
+STORY-042 STORY-043: Short desc      # multiple stories
+chore: bump goreleaser to v2         # no story — agent skips cleanly
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full convention.
+
+### Using backlog-mcp with GitHub Copilot agent mode
+
+GitHub Copilot's agent mode in VS Code reads MCP servers from `.vscode/mcp.json` in your project root. Note the key is `"servers"`, not `"mcpServers"` (which is the Claude Code convention):
+
+```json
+{
+  "servers": {
+    "backlog-mcp": {
+      "command": "/path/to/backlog-mcp",
+      "type": "stdio"
+    }
+  }
+}
+```
+
+MCP tools are only available in **Agent** mode — switch to it via the mode dropdown in Copilot Chat. Once configured, Copilot agent can call `list_stories`, `get_story`, `add_story_note`, and all other backlog tools during a chat session — the same tools the GitHub Actions workflow uses.
 
 ---
 

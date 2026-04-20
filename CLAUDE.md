@@ -146,6 +146,12 @@ Returns: `{ story_id, completed_at, backlog_removed }`.
 
 ---
 
+## Claude Code behaviour
+
+- Never commit or push changes unless explicitly asked to.
+
+---
+
 /## Known issues / things to review
 
 1. `backlog.go` regex assumes exact format `**STORY-NNN** — description`. Any deviation in the actual file will cause entries to be passed through unmodified (silently). Verify against a real backlog entry before trusting it.
