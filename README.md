@@ -175,7 +175,7 @@ A GitHub Actions workflow is included that automatically updates story statuses 
 
 On every `pull_request` event (`opened`, `synchronize`) the workflow:
 
-1. Builds the `backlog-mcp` binary from source.
+1. Installs the `backlog-mcp` binary via `go install github.com/corbym/backlog-mcp@latest`.
 2. Scans the PR title and branch name for `STORY-NNN` IDs.
 3. For each matched story, sets status to `in-progress` (if it was `draft` and the PR was just opened) and appends a timestamped note with the PR number and title.
 4. Commits any changed files under `requirements/` back to the PR branch.
@@ -188,7 +188,7 @@ Copy these three files into your repo:
 .github/
   actions/
     install/
-      action.yml          # composite action — builds the binary
+      action.yml          # composite action — installs the binary via go install
   scripts/
     backlog_agent.py      # deterministic MCP client (Python 3, stdlib only)
   workflows/
