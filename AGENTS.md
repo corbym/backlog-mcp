@@ -12,6 +12,9 @@ Project stories and epics live in `requirements/`. Use the backlog-mcp MCP tools
 - `add_story_note` — append a timestamped note to a story file
 - `complete_story` — mark a story `done` and append the completion summary note in one call
 - `get_index_summary` — high-level epic/story counts by status
+- `bulk_update_acceptance_criteria` — patch checked state of multiple AC items on one story in a single call
+- `bulk_update_stories` — update status, notes, and/or criteria across multiple stories at once
+- `bulk_update_epics` — update status and/or notes across multiple epics at once
 
 **Conventions**
 
