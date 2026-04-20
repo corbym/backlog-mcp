@@ -755,7 +755,317 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 		},
 	)
 
-	// ── get_index_summary ────────────────────────────────────────────────────
+	// ── bulk_update_acceptance_criteria ─────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("bulk_update_acceptance_criteria",
+			mcp.WithDescription("Update the checked state of individual acceptance criteria on a story in one operation. "+
+				"Only the criteria explicitly listed are modified; all others are left untouched. "+
+				"Criteria are matched by exact text. If any criterion text is not found, no changes are made and an error is returned. "+
+				"Returns {story_id, path, content, criteria_updated, errors}."),
+			mcp.WithString("story_id",
+				mcp.Description("Story ID to update, e.g. STORY-047"),
+				mcp.Required(),
+			),
+			mcp.WithObject("criteria",
+				mcp.Description("Map of criterion text to desired checked state. true = checked [x], false = unchecked [ ]. Criterion text must match exactly."),
+				mcp.AdditionalProperties(map[string]any{"type": "boolean"}),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			storyID := strings.ToUpper(requiredString(req, "story_id"))
+			if storyID == "" {
+				return toolError(fmt.Errorf("missing required parameter \"story_id\"")), nil
+			}
+
+			criteriaMap, err := requiredBoolMap(req, "criteria")
+			if err != nil {
+				return toolError(err), nil
+			}
+			if len(criteriaMap) == 0 {
+				return toolError(fmt.Errorf("criteria must not be empty")), nil
+			}
+
+			relPath, err := parser.FindStoryPath(cfg.StoriesRoot, storyID)
+			if err != nil {
+				return toolError(fmt.Errorf("story %s not found: %w", storyID, err)), nil
+			}
+
+			notFound, err := parser.PatchAcceptanceCriteria(cfg.StoriesRoot, relPath, criteriaMap)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			content, err := parser.ReadStory(cfg.StoriesRoot, relPath)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			updated := make([]string, 0, len(criteriaMap))
+			for text := range criteriaMap {
+				updated = append(updated, text)
+			}
+
+			return toolJSON(map[string]any{
+				"story_id":         storyID,
+				"path":             relPath,
+				"content":          content,
+				"criteria_updated": updated,
+				"errors":           notFound,
+			})
+		},
+	)
+
+	// ── bulk_update_stories ──────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("bulk_update_stories",
+			mcp.WithDescription("Update multiple stories in one operation. Each entry may set status, append a note, and/or patch acceptance criteria. "+
+				"Updates are applied atomically per file. If a story does not exist, an error is recorded for that entry and processing continues. "+
+				"Returns an array of per-story result objects with fields: story_id, status_updated, old_status, new_status, note_appended, criteria_updated, criteria_errors, errors."),
+			mcp.WithArray("updates",
+				mcp.Description("Array of story update objects. Each must include story_id; status, note, and criteria are optional. "+
+					"status must be one of: draft, in-progress, blocked, deferred (use complete_story to mark done). "+
+					"note is appended, not replaced. "+
+					"criteria is a map of criterion text to boolean checked state."),
+				mcp.Items(map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"story_id": map[string]any{"type": "string"},
+						"status":   map[string]any{"type": "string"},
+						"note":     map[string]any{"type": "string"},
+						"criteria": map[string]any{
+							"type":                 "object",
+							"additionalProperties": map[string]any{"type": "boolean"},
+						},
+					},
+					"required": []any{"story_id"},
+				}),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			updates, err := requiredObjectSlice(req, "updates")
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			type rowResult struct {
+				StoryID         string   `json:"story_id"`
+				StatusUpdated   bool     `json:"status_updated"`
+				OldStatus       string   `json:"old_status,omitempty"`
+				NewStatus       string   `json:"new_status,omitempty"`
+				NoteAppended    bool     `json:"note_appended"`
+				CriteriaUpdated []string `json:"criteria_updated,omitempty"`
+				CriteriaErrors  []string `json:"criteria_errors,omitempty"`
+				Errors          []string `json:"errors"`
+			}
+
+			results := make([]rowResult, 0, len(updates))
+			validStatuses := map[string]bool{
+				"draft": true, "in-progress": true, "blocked": true, "deferred": true,
+			}
+
+			for _, upd := range updates {
+				storyID := strings.ToUpper(stringField(upd, "story_id"))
+				row := rowResult{StoryID: storyID, Errors: []string{}}
+
+				if storyID == "" {
+					row.Errors = append(row.Errors, "story_id is required")
+					results = append(results, row)
+					continue
+				}
+
+				relPath, pathErr := parser.FindStoryPath(cfg.StoriesRoot, storyID)
+				if pathErr != nil {
+					row.Errors = append(row.Errors, fmt.Sprintf("story %s not found", storyID))
+					results = append(results, row)
+					continue
+				}
+
+				// Optional: status update
+				if rawStatus, ok := upd["status"]; ok && rawStatus != nil {
+					newStatus := strings.ToLower(fmt.Sprintf("%v", rawStatus))
+					if newStatus == "done" {
+						row.Errors = append(row.Errors, "use complete_story to mark a story done")
+					} else if !validStatuses[newStatus] {
+						row.Errors = append(row.Errors, fmt.Sprintf("invalid status %q: must be draft, in-progress, blocked, or deferred", newStatus))
+					} else {
+						oldStatus, statusErr := parser.UpdateStoryStatus(cfg.StoriesRoot, storyID, newStatus)
+						if statusErr != nil {
+							row.Errors = append(row.Errors, statusErr.Error())
+						} else {
+							row.StatusUpdated = true
+							row.OldStatus = oldStatus
+							row.NewStatus = newStatus
+							_ = parser.UpdateBacklogStatus(cfg.StoriesRoot, storyID, newStatus)
+							if _, err := parser.UpdateStoryStatusMetadata(cfg.StoriesRoot, relPath, newStatus); err != nil {
+								// non-fatal
+							}
+						}
+					}
+				}
+
+				// Optional: append note
+				if rawNote, ok := upd["note"]; ok && rawNote != nil {
+					note := strings.TrimSpace(fmt.Sprintf("%v", rawNote))
+					if note != "" {
+						ts := time.Now().UTC().Format(time.RFC3339)
+						if noteErr := parser.AppendNote(cfg.StoriesRoot, relPath, ts, note); noteErr != nil {
+							row.Errors = append(row.Errors, noteErr.Error())
+						} else {
+							row.NoteAppended = true
+						}
+					}
+				}
+
+				// Optional: patch criteria
+				if rawCriteria, ok := upd["criteria"]; ok && rawCriteria != nil {
+					criteriaMap, mapErr := extractBoolMap(rawCriteria)
+					if mapErr != nil {
+						row.Errors = append(row.Errors, mapErr.Error())
+					} else if len(criteriaMap) > 0 {
+						notFound, patchErr := parser.PatchAcceptanceCriteria(cfg.StoriesRoot, relPath, criteriaMap)
+						if patchErr != nil {
+							row.CriteriaErrors = notFound
+						} else {
+							updated := make([]string, 0, len(criteriaMap))
+							for text := range criteriaMap {
+								updated = append(updated, text)
+							}
+							row.CriteriaUpdated = updated
+						}
+					}
+				}
+
+				results = append(results, row)
+			}
+
+			return toolJSON(results)
+		},
+	)
+
+	// ── bulk_update_epics ────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("bulk_update_epics",
+			mcp.WithDescription("Update multiple epics in one operation. Each entry may set status and/or append a note. "+
+				"Updates are applied atomically per file. If an epic does not exist, an error is recorded for that entry and processing continues. "+
+				"Returns an array of per-epic result objects with fields: epic_id, status_updated, old_status, new_status, note_appended, errors."),
+			mcp.WithArray("updates",
+				mcp.Description("Array of epic update objects. Each must include epic_id; status and note are optional. "+
+					"status must be one of: draft, in-progress, done, blocked, deferred. "+
+					"note is appended, not replaced."),
+				mcp.Items(map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"epic_id": map[string]any{"type": "string"},
+						"status":  map[string]any{"type": "string"},
+						"note":    map[string]any{"type": "string"},
+					},
+					"required": []any{"epic_id"},
+				}),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			updates, err := requiredObjectSlice(req, "updates")
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			type rowResult struct {
+				EpicID        string   `json:"epic_id"`
+				StatusUpdated bool     `json:"status_updated"`
+				OldStatus     string   `json:"old_status,omitempty"`
+				NewStatus     string   `json:"new_status,omitempty"`
+				NoteAppended  bool     `json:"note_appended"`
+				Errors        []string `json:"errors"`
+			}
+
+			validStatuses := map[string]bool{
+				"draft": true, "in-progress": true, "done": true, "blocked": true, "deferred": true,
+			}
+
+			results := make([]rowResult, 0, len(updates))
+
+			for _, upd := range updates {
+				epicID := strings.ToUpper(stringField(upd, "epic_id"))
+				row := rowResult{EpicID: epicID, Errors: []string{}}
+
+				if epicID == "" {
+					row.Errors = append(row.Errors, "epic_id is required")
+					results = append(results, row)
+					continue
+				}
+
+				// Optional: status update
+				if rawStatus, ok := upd["status"]; ok && rawStatus != nil {
+					newStatus := strings.ToLower(fmt.Sprintf("%v", rawStatus))
+					if !validStatuses[newStatus] {
+						row.Errors = append(row.Errors, fmt.Sprintf("invalid status %q: must be draft, in-progress, done, blocked, or deferred", newStatus))
+					} else {
+						oldStatus, statusErr := parser.UpdateEpicStatus(cfg.StoriesRoot, epicID, newStatus)
+						if statusErr != nil {
+							row.Errors = append(row.Errors, statusErr.Error())
+						} else {
+							row.StatusUpdated = true
+							row.OldStatus = oldStatus
+							row.NewStatus = newStatus
+						}
+					}
+				}
+
+				// Optional: append note
+				if rawNote, ok := upd["note"]; ok && rawNote != nil {
+					note := strings.TrimSpace(fmt.Sprintf("%v", rawNote))
+					if note != "" {
+						epicRelPath, pathErr := parser.FindEpicFilePath(cfg.StoriesRoot, epicID)
+						if pathErr != nil {
+							row.Errors = append(row.Errors, pathErr.Error())
+						} else {
+							ts := time.Now().UTC().Format(time.RFC3339)
+							if noteErr := parser.AppendNote(cfg.StoriesRoot, epicRelPath, ts, note); noteErr != nil {
+								row.Errors = append(row.Errors, noteErr.Error())
+							} else {
+								row.NoteAppended = true
+							}
+						}
+					}
+				}
+
+				// If neither status nor note was provided and no errors either, the epic_id
+				// must exist — validate that now (the status update would have caught it already).
+				if !row.StatusUpdated && !row.NoteAppended && len(row.Errors) == 0 {
+					if _, pathErr := parser.FindEpicFilePath(cfg.StoriesRoot, epicID); pathErr != nil {
+						row.Errors = append(row.Errors, fmt.Sprintf("epic %s not found", epicID))
+					}
+				}
+
+				results = append(results, row)
+			}
+
+			return toolJSON(results)
+		},
+	)
+
+
 	s.AddTool(
 		mcp.NewTool("get_index_summary",
 			mcp.WithDescription("Get a high-level summary of all epics and their story counts broken down by status. Useful for situational awareness at the start of a session, without reading every file. Returns an array of {epic_id, title, status, counts: {status: n}, stories: [{story_id, status}]}."),
@@ -847,7 +1157,71 @@ func optionalStringSlice(req mcp.CallToolRequest, key string) []string {
 	return result
 }
 
-// requiredStringSlice extracts a required array-of-strings parameter from a tool request.
+// requiredBoolMap extracts a required object-of-booleans parameter from a tool request.
+func requiredBoolMap(req mcp.CallToolRequest, key string) (map[string]bool, error) {
+	args, ok := req.Params.Arguments.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("missing required parameter %q", key)
+	}
+	v, ok := args[key]
+	if !ok || v == nil {
+		return nil, fmt.Errorf("missing required parameter %q", key)
+	}
+	return extractBoolMap(v)
+}
+
+// extractBoolMap converts a map[string]any (with boolean values) to map[string]bool.
+func extractBoolMap(v any) (map[string]bool, error) {
+	raw, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("expected an object with boolean values")
+	}
+	result := make(map[string]bool, len(raw))
+	for k, val := range raw {
+		b, ok := val.(bool)
+		if !ok {
+			return nil, fmt.Errorf("value for %q must be a boolean, got %T", k, val)
+		}
+		result[k] = b
+	}
+	return result, nil
+}
+
+// requiredObjectSlice extracts a required array-of-objects parameter from a tool request.
+func requiredObjectSlice(req mcp.CallToolRequest, key string) ([]map[string]any, error) {
+	args, ok := req.Params.Arguments.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("missing required parameter %q", key)
+	}
+	v, ok := args[key]
+	if !ok || v == nil {
+		return nil, fmt.Errorf("missing required parameter %q", key)
+	}
+	raw, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("parameter %q must be an array of objects", key)
+	}
+	result := make([]map[string]any, 0, len(raw))
+	for i, item := range raw {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("parameter %q item %d must be an object", key, i)
+		}
+		result = append(result, obj)
+	}
+	return result, nil
+}
+
+// stringField extracts a string field from a map[string]any, returning "" if absent or not a string.
+func stringField(m map[string]any, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
+}
+
 func requiredStringSlice(req mcp.CallToolRequest, key string) ([]string, error) {
 	args, ok := req.Params.Arguments.(map[string]any)
 	if !ok {

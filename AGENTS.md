@@ -40,6 +40,14 @@ Plans live in `requirements/plan*.md`. They describe overall project goals and d
 - Plans never reference specific stories — keep that relationship one-way (stories may reference plan sections, not the other way around)
 - Never edit a plan to add story references or implementation detail — plans are for goals and intent, not execution tracking
 
+## Bulk update tools
+
+- Use `bulk_update_acceptance_criteria` when ticking off two or more criteria on the same story in one operation
+- Use `bulk_update_stories` when a single PR or task affects multiple stories, for example updating status and appending a note across three stories at once
+- Use `bulk_update_epics` only when explicitly instructed to update epic status or notes, never infer epic completion from story statuses
+- Prefer bulk tools over repeated single-item calls whenever two or more items need the same class of update
+- Never use bulk tools to create or delete stories or epics, only to update existing ones
+
 ## PR Agent Behaviour
 
 - The agent runs automatically on PRs via GitHub Actions (`.github/workflows/backlog-agent.yml`), triggered on `opened` and `synchronize` events

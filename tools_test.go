@@ -995,6 +995,438 @@ func TestCheckAcceptanceCriterion_NeitherProvided_ReturnsError(t *testing.T) {
 	assertError(t, result, "criterion_index or criterion_text")
 }
 
+// ── bulk_update_acceptance_criteria ──────────────────────────────────────────
+
+func TestBulkUpdateAC_ChecksNamedCriteria(t *testing.T) {
+	root, s := newFixture(t)
+
+	// STORY-004 has: [x] Enemy drops loot on death, [ ] Loot respects rarity weights
+	obj := unmarshalObject(t, callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-004",
+		"criteria": map[string]any{
+			"Loot respects rarity weights": true,
+		},
+	}))
+
+	if obj["story_id"] != "STORY-004" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+	if obj["content"] == nil || obj["content"] == "" {
+		t.Error("expected content in response")
+	}
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	body := string(content)
+	if !strings.Contains(body, "- [x] Loot respects rarity weights") {
+		t.Error("criterion not flipped to [x] on disk")
+	}
+	// unchanged criterion should remain unchanged
+	if !strings.Contains(body, "- [x] Enemy drops loot on death") {
+		t.Error("unchanged criterion should remain [x]")
+	}
+}
+
+func TestBulkUpdateAC_UnchecksCriteria(t *testing.T) {
+	root, s := newFixture(t)
+
+	// STORY-004 has: [x] Enemy drops loot on death — uncheck it
+	assertOK(t, callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-004",
+		"criteria": map[string]any{
+			"Enemy drops loot on death": false,
+		},
+	}))
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if !strings.Contains(string(content), "- [ ] Enemy drops loot on death") {
+		t.Error("criterion not flipped to unchecked on disk")
+	}
+}
+
+func TestBulkUpdateAC_UpdatesMultipleCriteriaAtOnce(t *testing.T) {
+	root, s := newFixture(t)
+
+	// STORY-002: both criteria already checked — we uncheck them in one call
+	assertOK(t, callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-002",
+		"criteria": map[string]any{
+			"Enemy can path to player":  false,
+			"Enemy attacks when adjacent": false,
+		},
+	}))
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-002.md"))
+	body := string(content)
+	if !strings.Contains(body, "- [ ] Enemy can path to player") {
+		t.Error("first criterion not unchecked")
+	}
+	if !strings.Contains(body, "- [ ] Enemy attacks when adjacent") {
+		t.Error("second criterion not unchecked")
+	}
+}
+
+func TestBulkUpdateAC_UnknownCriterion_ReturnsError_FileUnchanged(t *testing.T) {
+	root, s := newFixture(t)
+
+	original, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+
+	result := callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-004",
+		"criteria": map[string]any{
+			"This criterion does not exist": true,
+		},
+	})
+	assertError(t, result, "not found")
+
+	// File must be unchanged.
+	after, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if string(original) != string(after) {
+		t.Error("file was modified even though criterion was not found")
+	}
+}
+
+func TestBulkUpdateAC_UnknownStory_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-999",
+		"criteria": map[string]any{
+			"Some criterion": true,
+		},
+	})
+	assertError(t, result, "STORY-999")
+}
+
+func TestBulkUpdateAC_MissingStoryID_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"criteria": map[string]any{
+			"Some criterion": true,
+		},
+	})
+	assertError(t, result, "story_id")
+}
+
+func TestBulkUpdateAC_MissingCriteria_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-004",
+	})
+	assertError(t, result, "criteria")
+}
+
+// ── bulk_update_stories ───────────────────────────────────────────────────────
+
+func TestBulkUpdateStories_UpdatesStatusAndNote(t *testing.T) {
+	root, s := newFixture(t)
+
+	result := callTool(t, s, "bulk_update_stories", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"story_id": "STORY-001",
+				"status":   "in-progress",
+				"note":     "Starting work.",
+			},
+			map[string]any{
+				"story_id": "STORY-004",
+				"status":   "blocked",
+			},
+		},
+	})
+	rows := unmarshalArray(t, result)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 result rows, got %d", len(rows))
+	}
+
+	// Row 0: STORY-001 updated to in-progress with note
+	row0 := rows[0]
+	if row0["story_id"] != "STORY-001" {
+		t.Errorf("row0 story_id: got %q", row0["story_id"])
+	}
+	if row0["status_updated"] != true {
+		t.Errorf("row0 status_updated: got %v", row0["status_updated"])
+	}
+	if row0["old_status"] != "draft" {
+		t.Errorf("row0 old_status: got %q", row0["old_status"])
+	}
+	if row0["new_status"] != "in-progress" {
+		t.Errorf("row0 new_status: got %q", row0["new_status"])
+	}
+	if row0["note_appended"] != true {
+		t.Errorf("row0 note_appended: got %v", row0["note_appended"])
+	}
+
+	// Verify files on disk
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), "in-progress") {
+		t.Error("index not updated")
+	}
+	story001, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	if !strings.Contains(string(story001), "Starting work.") {
+		t.Error("note not appended to story-001")
+	}
+
+	// Row 1: STORY-004 updated to blocked, no note
+	row1 := rows[1]
+	if row1["story_id"] != "STORY-004" {
+		t.Errorf("row1 story_id: got %q", row1["story_id"])
+	}
+	if row1["status_updated"] != true {
+		t.Errorf("row1 status_updated: got %v", row1["status_updated"])
+	}
+	if row1["note_appended"] == true {
+		t.Error("row1 should not have note_appended=true when no note was provided")
+	}
+}
+
+func TestBulkUpdateStories_UpdatesCriteria(t *testing.T) {
+	root, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_stories", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"story_id": "STORY-004",
+				"criteria": map[string]any{
+					"Loot respects rarity weights": true,
+				},
+			},
+		},
+	}))
+
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 result row, got %d", len(rows))
+	}
+	if rows[0]["criteria_errors"] != nil {
+		t.Errorf("unexpected criteria_errors: %v", rows[0]["criteria_errors"])
+	}
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+		t.Error("criterion not flipped on disk")
+	}
+}
+
+func TestBulkUpdateStories_UnknownStory_ContinuesProcessingRest(t *testing.T) {
+	root, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_stories", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"story_id": "STORY-999",
+				"status":   "in-progress",
+			},
+			map[string]any{
+				"story_id": "STORY-001",
+				"status":   "in-progress",
+			},
+		},
+	}))
+
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 result rows, got %d", len(rows))
+	}
+
+	// Row 0 should be an error for STORY-999
+	errs0, _ := rows[0]["errors"].([]any)
+	if len(errs0) == 0 {
+		t.Error("expected errors for unknown STORY-999")
+	}
+
+	// Row 1 (STORY-001) should still be updated
+	if rows[1]["status_updated"] != true {
+		t.Error("STORY-001 should still be updated even after STORY-999 error")
+	}
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), "STORY-001") {
+		t.Error("index should still contain STORY-001")
+	}
+}
+
+func TestBulkUpdateStories_DoneStatus_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_stories", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"story_id": "STORY-002",
+				"status":   "done",
+			},
+		},
+	}))
+
+	errs, _ := rows[0]["errors"].([]any)
+	if len(errs) == 0 {
+		t.Error("expected error when trying to set status to done via bulk_update_stories")
+	}
+}
+
+func TestBulkUpdateStories_MissingUpdates_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "bulk_update_stories", map[string]any{})
+	assertError(t, result, "updates")
+}
+
+func TestBulkUpdateStories_CriterionNotFound_ReportsErrorInRow(t *testing.T) {
+	root, s := newFixture(t)
+
+	original, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_stories", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"story_id": "STORY-004",
+				"criteria": map[string]any{
+					"Nonexistent criterion": true,
+				},
+			},
+		},
+	}))
+
+	errs, _ := rows[0]["criteria_errors"].([]any)
+	if len(errs) == 0 {
+		t.Error("expected criteria_errors for nonexistent criterion")
+	}
+
+	// File must be unchanged
+	after, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	if string(original) != string(after) {
+		t.Error("story file was modified despite criterion error")
+	}
+}
+
+// ── bulk_update_epics ─────────────────────────────────────────────────────────
+
+func TestBulkUpdateEpics_UpdatesStatusAndNote(t *testing.T) {
+	root, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_epics", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"epic_id": "EPIC-001",
+				"status":  "in-progress",
+				"note":    "Work has begun.",
+			},
+		},
+	}))
+
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 result row, got %d", len(rows))
+	}
+	row := rows[0]
+	if row["epic_id"] != "EPIC-001" {
+		t.Errorf("epic_id: got %q", row["epic_id"])
+	}
+	if row["status_updated"] != true {
+		t.Errorf("status_updated: got %v", row["status_updated"])
+	}
+	if row["old_status"] != "draft" {
+		t.Errorf("old_status: got %q", row["old_status"])
+	}
+	if row["new_status"] != "in-progress" {
+		t.Errorf("new_status: got %q", row["new_status"])
+	}
+	if row["note_appended"] != true {
+		t.Errorf("note_appended: got %v", row["note_appended"])
+	}
+
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), "in-progress") {
+		t.Error("index not updated with new epic status")
+	}
+	epic001, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "epic-001.md"))
+	if !strings.Contains(string(epic001), "Work has begun.") {
+		t.Error("note not appended to epic file")
+	}
+}
+
+func TestBulkUpdateEpics_UnknownEpic_ContinuesProcessingRest(t *testing.T) {
+	root, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_epics", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"epic_id": "EPIC-999",
+				"status":  "in-progress",
+			},
+			map[string]any{
+				"epic_id": "EPIC-001",
+				"status":  "in-progress",
+			},
+		},
+	}))
+
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 result rows, got %d", len(rows))
+	}
+
+	errs0, _ := rows[0]["errors"].([]any)
+	if len(errs0) == 0 {
+		t.Error("expected errors for unknown EPIC-999")
+	}
+
+	if rows[1]["status_updated"] != true {
+		t.Error("EPIC-001 should still be updated")
+	}
+
+	index, _ := os.ReadFile(filepath.Join(root, "requirements-index.md"))
+	if !strings.Contains(string(index), "EPIC-001") {
+		t.Error("index should still contain EPIC-001")
+	}
+}
+
+func TestBulkUpdateEpics_NoteOnlyNoStatus(t *testing.T) {
+	root, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_epics", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"epic_id": "EPIC-001",
+				"note":    "Reviewed scope.",
+			},
+		},
+	}))
+
+	if rows[0]["status_updated"] == true {
+		t.Error("status_updated should not be true when no status was provided")
+	}
+	if rows[0]["note_appended"] != true {
+		t.Error("note_appended should be true")
+	}
+
+	epic001, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "epic-001.md"))
+	if !strings.Contains(string(epic001), "Reviewed scope.") {
+		t.Error("note not appended to epic file")
+	}
+}
+
+func TestBulkUpdateEpics_InvalidStatus_ReturnsErrorInRow(t *testing.T) {
+	_, s := newFixture(t)
+
+	rows := unmarshalArray(t, callTool(t, s, "bulk_update_epics", map[string]any{
+		"updates": []any{
+			map[string]any{
+				"epic_id": "EPIC-001",
+				"status":  "wip",
+			},
+		},
+	}))
+
+	errs, _ := rows[0]["errors"].([]any)
+	if len(errs) == 0 {
+		t.Error("expected error for invalid status")
+	}
+}
+
+func TestBulkUpdateEpics_MissingUpdates_ReturnsError(t *testing.T) {
+	_, s := newFixture(t)
+
+	result := callTool(t, s, "bulk_update_epics", map[string]any{})
+	assertError(t, result, "updates")
+}
+
 // ── concurrency ───────────────────────────────────────────────────────────────
 
 // TestConcurrentSetStoryStatus_Serialises fires 10 goroutines simultaneously,
