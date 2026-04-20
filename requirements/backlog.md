@@ -7,3 +7,4 @@ When a story reaches `done`, remove it from the backlog and renumber.
 3. [STORY-018](epic-003-agent-estimation/story-018.md) ([EPIC-003](epic-003-agent-estimation/epic-003.md)) — Agent pre-flight self-estimate recorded on story start
 4. [STORY-019](epic-003-agent-estimation/story-019.md) ([EPIC-003](epic-003-agent-estimation/epic-003.md)) — Calibration report: compare pre-flight estimates vs actuals
 5. [STORY-020](epic-003-agent-estimation/story-020.md) ([EPIC-003](epic-003-agent-estimation/epic-003.md)) — Automate pre-flight scoring on set_story_status in-progress
+6. [STORY-022](epic-002-backlog-mcp-dogfood/story-022.md) ([EPIC-002](epic-002-backlog-mcp-dogfood/epic-002.md)) — Add bulk update tools for stories, epics, and acceptance criteria *(in-progress)*

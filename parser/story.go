@@ -307,6 +307,82 @@ func UpdateStoryStatusMetadata(root, relPath, newStatus string) (bool, error) {
 	return true, writeAtomic(full, []byte(strings.Join(lines, "\n")))
 }
 
+// PatchAcceptanceCriteria updates the checked state of individual acceptance criteria
+// by exact text match. Only criteria present in the updates map are modified; all
+// others are left unchanged.
+//
+// If any key in updates does not match any criterion text exactly, the function
+// returns the list of unmatched keys and leaves the file unchanged.
+func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (notFound []string, err error) {
+	full := filepath.Join(root, filepath.FromSlash(relPath))
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return nil, fmt.Errorf("reading story: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	// Locate the ## Acceptance criteria section.
+	acStart := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "## Acceptance criteria" {
+			acStart = i
+			break
+		}
+	}
+	if acStart == -1 {
+		return nil, fmt.Errorf("no '## Acceptance criteria' section found in %s", relPath)
+	}
+	acEnd := len(lines)
+	for i := acStart + 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") {
+			acEnd = i
+			break
+		}
+	}
+
+	// Build a map from criterion text to line index within the AC section.
+	type acEntry struct {
+		lineIdx int
+		checked bool
+	}
+	acByText := make(map[string]acEntry)
+	for i, line := range lines[acStart+1 : acEnd] {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "- [x] "), strings.HasPrefix(trimmed, "- [X] "):
+			acByText[trimmed[6:]] = acEntry{lineIdx: acStart + 1 + i, checked: true}
+		case strings.HasPrefix(trimmed, "- [ ] "):
+			acByText[trimmed[6:]] = acEntry{lineIdx: acStart + 1 + i, checked: false}
+		}
+	}
+
+	// Validate that all requested criteria exist.
+	for text := range updates {
+		if _, ok := acByText[text]; !ok {
+			notFound = append(notFound, text)
+		}
+	}
+	if len(notFound) > 0 {
+		return notFound, fmt.Errorf("criterion/criteria not found: %s", strings.Join(notFound, ", "))
+	}
+
+	// Apply updates.
+	for text, wantChecked := range updates {
+		entry := acByText[text]
+		if wantChecked && !entry.checked {
+			lines[entry.lineIdx] = strings.Replace(lines[entry.lineIdx], "- [ ] ", "- [x] ", 1)
+		} else if !wantChecked && entry.checked {
+			line := lines[entry.lineIdx]
+			if len(line) >= 6 && strings.EqualFold(line[:6], "- [x] ") {
+				lines[entry.lineIdx] = "- [ ] " + line[6:]
+			}
+		}
+	}
+
+	return nil, writeAtomic(full, []byte(strings.Join(lines, "\n")))
+}
+
 // extractNumber returns the zero-padded numeric portion of a story/epic ID.
 // "STORY-009" -> "009", "STORY-47" -> "047" is NOT done here; we match as-is from the ID.
 // Actually we just strip leading zeros and reformat to match filesystem convention.

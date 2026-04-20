@@ -12,6 +12,9 @@ Project stories and epics live in `requirements/`. Use the backlog-mcp MCP tools
 - `add_story_note` — append a timestamped note to a story file
 - `complete_story` — mark a story `done` and append the completion summary note in one call
 - `get_index_summary` — high-level epic/story counts by status
+- `bulk_update_acceptance_criteria` — patch checked state of multiple AC items on one story in a single call
+- `bulk_update_stories` — update status, notes, and/or criteria across multiple stories at once
+- `bulk_update_epics` — update status and/or notes across multiple epics at once
 
 **Conventions**
 
@@ -21,6 +24,7 @@ Project stories and epics live in `requirements/`. Use the backlog-mcp MCP tools
 - Always call `complete_story` when you finish work on a story (do not use `set_story_status` + `add_story_note` separately)
 - Use `add_story_note` to record decisions, blockers, or progress — never edit story files directly
 - After `create_story`, immediately call `set_acceptance_criteria` with a concrete list of criteria before beginning implementation — a story with only the placeholder AC is not ready to implement
+- Branch names must include the story ID (e.g. `copilot/STORY-022-bulk-update-tools` or `chore/STORY-022-description`). Never start implementation on a branch without a story — create the story first, then branch.
 
 **Testing (mandatory)**
 
@@ -39,6 +43,14 @@ Plans live in `requirements/plan*.md`. They describe overall project goals and d
 - Use plans to decide what stories to create and how to order the backlog
 - Plans never reference specific stories — keep that relationship one-way (stories may reference plan sections, not the other way around)
 - Never edit a plan to add story references or implementation detail — plans are for goals and intent, not execution tracking
+
+## Bulk update tools
+
+- Use `bulk_update_acceptance_criteria` when ticking off two or more criteria on the same story in one operation
+- Use `bulk_update_stories` when a single PR or task affects multiple stories, for example updating status and appending a note across three stories at once
+- Use `bulk_update_epics` only when explicitly instructed to update epic status or notes, never infer epic completion from story statuses
+- Prefer bulk tools over repeated single-item calls whenever two or more items need the same class of update
+- Never use bulk tools to create or delete stories or epics, only to update existing ones
 
 ## PR Agent Behaviour
 
