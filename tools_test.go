@@ -172,6 +172,49 @@ func unmarshalObject(t *testing.T, result *mcp.CallToolResult) map[string]any {
 	return out
 }
 
+// hasCriterionLine returns true if body contains any line with the given checked
+// state marker and the criterion text substring. This handles both plain-text
+// criteria ("- [ ] Some text") and ID-prefixed criteria
+// ("- [ ] AC-STORY-NNN-XXXXXXXX: Some text").
+func hasCriterionLine(body, text string, checked bool) bool {
+	marker := "[ ]"
+	if checked {
+		marker = "[x]"
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if strings.Contains(line, marker) && strings.Contains(line, text) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractACID extracts the first "AC-STORY-NNN-XXXXXXXX" ID found in a line
+// that also contains the given text substring. Returns "" if not found.
+func extractACID(body, text string) string {
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.Contains(line, text) {
+			continue
+		}
+		idx := strings.Index(line, "AC-")
+		if idx < 0 {
+			continue
+		}
+		// AC-STORY-NNN-XXXXXXXX is at least 22 chars: "AC-" + "STORY-" + NNN(3) + "-" + 8
+		rest := line[idx:]
+		end := strings.Index(rest, ":")
+		if end < 0 {
+			continue
+		}
+		candidate := rest[:end]
+		// Must have exactly 3 dashes: AC - STORY - NNN - XXXXXXXX
+		if strings.Count(candidate, "-") == 3 {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // ── list_stories ─────────────────────────────────────────────────────────────
 
 func TestListStories_ReturnsAllStories(t *testing.T) {
@@ -672,10 +715,10 @@ func TestSetAcceptanceCriteria_ReplacesCriteriaSection(t *testing.T) {
 	if !strings.Contains(body, "## Acceptance criteria") {
 		t.Error("## Acceptance criteria section missing")
 	}
-	if !strings.Contains(body, "- [ ] Combat starts when enemy is adjacent") {
+	if !hasCriterionLine(body, "Combat starts when enemy is adjacent", false) {
 		t.Error("first criterion missing")
 	}
-	if !strings.Contains(body, "- [ ] Player loses HP on hit") {
+	if !hasCriterionLine(body, "Player loses HP on hit", false) {
 		t.Error("second criterion missing")
 	}
 	// Original story content should still be present.
@@ -701,10 +744,10 @@ func TestSetAcceptanceCriteria_Idempotent(t *testing.T) {
 	if strings.Contains(body, "Old criterion") {
 		t.Error("stale criterion from first call should have been replaced")
 	}
-	if !strings.Contains(body, "- [ ] New criterion A") {
+	if !hasCriterionLine(body, "New criterion A", false) {
 		t.Error("New criterion A missing after second call")
 	}
-	if !strings.Contains(body, "- [ ] New criterion B") {
+	if !hasCriterionLine(body, "New criterion B", false) {
 		t.Error("New criterion B missing after second call")
 	}
 	if strings.Count(body, "## Acceptance criteria") != 1 {
@@ -904,7 +947,7 @@ func TestCheckAcceptanceCriterion_ByIndex_FlipsUnchecked(t *testing.T) {
 	}
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
-	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+	if !hasCriterionLine(string(content), "Loot respects rarity weights", true) {
 		t.Error("criterion not flipped to [x] on disk")
 	}
 }
@@ -922,7 +965,7 @@ func TestCheckAcceptanceCriterion_ByText_FlipsUnchecked(t *testing.T) {
 	}
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
-	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+	if !hasCriterionLine(string(content), "Loot respects rarity weights", true) {
 		t.Error("criterion not flipped to [x] on disk")
 	}
 }
@@ -940,7 +983,7 @@ func TestCheckAcceptanceCriterion_ByText_CaseInsensitive(t *testing.T) {
 	}
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
-	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+	if !hasCriterionLine(string(content), "Loot respects rarity weights", true) {
 		t.Error("criterion not flipped to [x] on disk")
 	}
 }
@@ -1017,11 +1060,11 @@ func TestBulkUpdateAC_ChecksNamedCriteria(t *testing.T) {
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
 	body := string(content)
-	if !strings.Contains(body, "- [x] Loot respects rarity weights") {
+	if !hasCriterionLine(body, "Loot respects rarity weights", true) {
 		t.Error("criterion not flipped to [x] on disk")
 	}
 	// unchanged criterion should remain unchanged
-	if !strings.Contains(body, "- [x] Enemy drops loot on death") {
+	if !hasCriterionLine(body, "Enemy drops loot on death", true) {
 		t.Error("unchanged criterion should remain [x]")
 	}
 }
@@ -1038,7 +1081,7 @@ func TestBulkUpdateAC_UnchecksCriteria(t *testing.T) {
 	}))
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
-	if !strings.Contains(string(content), "- [ ] Enemy drops loot on death") {
+	if !hasCriterionLine(string(content), "Enemy drops loot on death", false) {
 		t.Error("criterion not flipped to unchecked on disk")
 	}
 }
@@ -1057,10 +1100,10 @@ func TestBulkUpdateAC_UpdatesMultipleCriteriaAtOnce(t *testing.T) {
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-002.md"))
 	body := string(content)
-	if !strings.Contains(body, "- [ ] Enemy can path to player") {
+	if !hasCriterionLine(body, "Enemy can path to player", false) {
 		t.Error("first criterion not unchecked")
 	}
-	if !strings.Contains(body, "- [ ] Enemy attacks when adjacent") {
+	if !hasCriterionLine(body, "Enemy attacks when adjacent", false) {
 		t.Error("second criterion not unchecked")
 	}
 }
@@ -1203,7 +1246,7 @@ func TestBulkUpdateStories_UpdatesCriteria(t *testing.T) {
 	}
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
-	if !strings.Contains(string(content), "- [x] Loot respects rarity weights") {
+	if !hasCriterionLine(string(content), "Loot respects rarity weights", true) {
 		t.Error("criterion not flipped on disk")
 	}
 }
@@ -1474,5 +1517,154 @@ func TestConcurrentSetStoryStatus_Serialises(t *testing.T) {
 	}
 	if !strings.Contains(content, "EPIC-001") {
 		t.Error("requirements-index.md is corrupted: EPIC-001 section missing")
+	}
+}
+
+// ── acceptance criteria IDs ────────────────────────────────────────────────────
+
+func TestSetAcceptanceCriteria_AssignsACIDs(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Combat starts when enemy is adjacent", "Player loses HP on hit"},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body := string(content)
+
+	if !strings.Contains(body, "AC-STORY-001-") {
+		t.Error("expected AC-STORY-001- prefix in criteria, got:\n" + body)
+	}
+	if !strings.Contains(body, "Combat starts when enemy is adjacent") {
+		t.Error("first criterion text missing")
+	}
+	if !strings.Contains(body, "Player loses HP on hit") {
+		t.Error("second criterion text missing")
+	}
+}
+
+func TestSetAcceptanceCriteria_PreservesExistingACIDs(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Combat starts when enemy is adjacent"},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body1 := string(content)
+
+	assignedID := extractACID(body1, "Combat starts when enemy is adjacent")
+	if assignedID == "" {
+		t.Fatal("could not extract assigned ID from first call")
+	}
+
+	// Second call with same text: ID must be preserved.
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Combat starts when enemy is adjacent"},
+	})
+
+	content2, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	if !strings.Contains(string(content2), assignedID) {
+		t.Errorf("ID %q was not preserved after second call to set_acceptance_criteria", assignedID)
+	}
+}
+
+func TestSetAcceptanceCriteria_NewCriteriaGetFreshIDs(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"First criterion"},
+	})
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	id1 := extractACID(string(content), "First criterion")
+	if id1 == "" {
+		t.Fatal("expected ID assigned to first criterion")
+	}
+
+	// Replace with a different criterion: new ID should be assigned.
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Second criterion"},
+	})
+	content2, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	id2 := extractACID(string(content2), "Second criterion")
+	if id2 == "" {
+		t.Fatal("expected ID assigned to second criterion")
+	}
+	if id1 == id2 {
+		t.Error("different criteria should not share the same ID")
+	}
+	if strings.Contains(string(content2), "First criterion") {
+		t.Error("replaced criterion should be gone")
+	}
+}
+
+func TestBulkUpdateAC_LazyAssignsIDsOnWrite(t *testing.T) {
+	root, s := newFixture(t)
+
+	// STORY-004 fixture has criteria without IDs.
+	callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-004",
+		"criteria": map[string]any{
+			"Loot respects rarity weights": true,
+		},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	body := string(content)
+	if !strings.Contains(body, "AC-STORY-004-") {
+		t.Error("expected lazy AC ID assignment on write, got:\n" + body)
+	}
+}
+
+func TestBulkUpdateAC_MatchByID(t *testing.T) {
+	root, s := newFixture(t)
+
+	// Assign IDs first.
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Combat starts when enemy is adjacent"},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	assignedID := extractACID(string(content), "Combat starts when enemy is adjacent")
+	if assignedID == "" {
+		t.Fatal("could not extract assigned ID")
+	}
+
+	// Update using the ID as the key.
+	obj := unmarshalObject(t, callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": map[string]any{
+			assignedID: true,
+		},
+	}))
+	if obj["story_id"] != "STORY-001" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+
+	content2, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	if !hasCriterionLine(string(content2), "Combat starts when enemy is adjacent", true) {
+		t.Error("criterion should be checked after bulk update by ID")
+	}
+}
+
+func TestCheckAcceptanceCriterion_LazyAssignsIDsOnWrite(t *testing.T) {
+	root, s := newFixture(t)
+
+	// STORY-004 fixture has criteria without IDs.
+	callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":        "STORY-004",
+		"criterion_index": float64(1),
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
+	body := string(content)
+	if !strings.Contains(body, "AC-STORY-004-") {
+		t.Error("expected lazy AC ID assignment on write, got:\n" + body)
 	}
 }

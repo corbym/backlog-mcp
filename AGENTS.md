@@ -51,6 +51,9 @@ Plans live in `requirements/plan*.md`. They describe overall project goals and d
 - Use `bulk_update_epics` only when explicitly instructed to update epic status or notes, never infer epic completion from story statuses
 - Prefer bulk tools over repeated single-item calls whenever two or more items need the same class of update
 - Never use bulk tools to create or delete stories or epics, only to update existing ones
+- Acceptance criteria have stable IDs in the format `AC-STORY-NNN-XXXXXXXX` where `XXXXXXXX` is the first 8 characters of a UUID v4
+- Prefer referencing criteria by ID over text when the ID is known
+- IDs are assigned automatically on first write, no grooming step is needed
 
 ## PR Agent Behaviour
 
