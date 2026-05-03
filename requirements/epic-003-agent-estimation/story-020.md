@@ -13,3 +13,8 @@ Once the rubric is calibrated from real data, automate the pre-flight scoring st
 - [ ] Returned estimate includes a band (S/M/L/XL) and a brief rationale explaining the score
 - [ ] Auto-score is clearly labelled as automated (not agent-provided) in the story file if persisted
 - [ ] Accuracy baseline: auto-score matches agent self-estimate within one band on ≥70% of the calibration dataset from STORY-019
+
+## Notes
+
+<!-- backlog-mcp: 2026-05-03T21:53:41Z -->
+Deferred. Automated pre-flight scoring against a calibrated rubric was the end-state of the estimation epic. In the reframed epic, STORY-018 covers automated readiness flag detection on set_story_status in-progress — this story's goal is absorbed by that work. Revisit only if STORY-018 turns out to need a separate automation step.

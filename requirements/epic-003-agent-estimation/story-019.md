@@ -13,3 +13,8 @@ Build a report or tool output that surfaces estimate vs actual comparisons acros
 - [ ] Aggregate summary shows: how many stories have both estimate+actuals, and mean absolute error per dimension where data exists
 - [ ] Report runs without error when no stories have estimate/actuals data (returns empty summary)
 - [ ] Output is human-readable text or structured JSON (agent-configurable)
+
+## Notes
+
+<!-- backlog-mcp: 2026-05-03T21:53:41Z -->
+Deferred. Calibration report comparing pre-flight estimates vs actuals is estimation-specific. The epic has been reframed around readiness flags, not effort bands. This story has no basis to exist in the new framing.

@@ -25,14 +25,14 @@
 | [STORY-014](./epic-002-backlog-mcp-dogfood/story-014.md) | List an epic's stories in the epic markdown file | done | feature |
 | [STORY-015](./epic-002-backlog-mcp-dogfood/story-015.md) | Add groom_epic tool to reconcile epic Stories section with filesystem and index | done | feature |
 | [STORY-021](./epic-002-backlog-mcp-dogfood/story-021.md) | Add set_epic_status tool to manage epic lifecycle | done | feature |
-| [STORY-022](./epic-002-backlog-mcp-dogfood/story-022.md) | Add bulk update tools for stories, epics, and acceptance criteria | in-progress | feature |
+| [STORY-022](./epic-002-backlog-mcp-dogfood/story-022.md) | Add bulk update tools for stories, epics, and acceptance criteria | done | feature |
 
 ## EPIC-003: Agent Estimation — `draft`
 
 | Story | Title | Status |
 |-------|-------|--------|
 | [STORY-016](./epic-003-agent-estimation/story-016.md) | Spike: define estimation dimensions and scoring rubric | draft | spike |
-| [STORY-017](./epic-003-agent-estimation/story-017.md) | Capture actuals on story completion | draft | feature |
+| [STORY-017](./epic-003-agent-estimation/story-017.md) | Capture actuals on story completion | deferred | feature |
 | [STORY-018](./epic-003-agent-estimation/story-018.md) | Agent pre-flight self-estimate recorded on story start | draft | feature |
-| [STORY-019](./epic-003-agent-estimation/story-019.md) | Calibration report: compare pre-flight estimates vs actuals | draft | feature |
-| [STORY-020](./epic-003-agent-estimation/story-020.md) | Automate pre-flight scoring on set_story_status in-progress | draft | feature |
+| [STORY-019](./epic-003-agent-estimation/story-019.md) | Calibration report: compare pre-flight estimates vs actuals | deferred | feature |
+| [STORY-020](./epic-003-agent-estimation/story-020.md) | Automate pre-flight scoring on set_story_status in-progress | deferred | feature |

@@ -1,15 +1,15 @@
-# STORY-016: Spike: define estimation dimensions and scoring rubric
+# STORY-016: Spike: define story readiness criteria and risk flags
 
 **Type:** spike
 
 ## Goal
 
-Research and document the dimensions that drive agent implementation effort. Produce a draft rubric with scoring guidance for each dimension: context surface (files to read), edit surface (files to change), AC ambiguity, pattern familiarity, and test complexity. The rubric should be simple enough for an agent to apply in under a minute before starting a story.
+Research and document what makes a story ready to implement. Identify the conditions whose absence predicts a false start, a mid-story AC revision, or a scope explosion. Produce a short written definition of "story readiness" with a checklist of concrete, detectable flags an agent can evaluate in under a minute before starting work. The checklist is the foundation for the automated readiness check in STORY-018.
 
 ## Acceptance criteria
 
-- [ ] A markdown document exists defining each estimation dimension with a clear description and 1–5 scoring guidance
-- [ ] Dimensions covered: context surface, edit surface, AC ambiguity, pattern familiarity, test complexity
-- [ ] Each score level (1–5) has at least one concrete example drawn from this codebase
-- [ ] A worked example scores an existing completed story (e.g. STORY-007 or STORY-009) against the full rubric
-- [ ] The rubric document is committed to the requirements directory and linked from epic-003.md
+- [ ] A markdown document exists defining "story readiness" with a checklist of named risk flags
+- [ ] Flags covered include at minimum: AC missing or placeholder, AC are vague or untestable, story has unresolved open questions (e.g. "?" in notes), test expectations are not explicit, an obvious dependency is not yet done
+- [ ] Each flag has: a name, how to detect it (heuristic or exact check), severity (advisory vs blocking), and a concrete example from this codebase showing a story with and without the flag
+- [ ] A worked example runs the checklist against one completed story from EPIC-002 and shows which flags fired and which cleared
+- [ ] The document is committed to requirements/epic-003-agent-estimation/ and linked from epic-003.md

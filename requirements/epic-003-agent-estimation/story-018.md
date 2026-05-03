@@ -1,15 +1,16 @@
-# STORY-018: Agent pre-flight self-estimate recorded on story start
+# STORY-018: Surface readiness flags when a story is started
 
 **Type:** feature
 
 ## Goal
 
-Before an agent sets a story to in-progress, it should score the story against each rubric dimension and record that estimate in the story file. The estimate becomes a pre-flight record that can later be compared against actuals. Format: structured note with per-dimension scores and a total estimated effort band (S/M/L/XL).
+When an agent calls set_story_status in-progress, run the readiness checklist defined in STORY-016 against the story content and include any flags in the tool response. The in-progress transition is never blocked — flags are advisory. An agent that sees flags is expected to acknowledge or address them before writing code.
 
 ## Acceptance criteria
 
-- [ ] When set_story_status in-progress is called, the tool response includes a prompt reminding the agent to record a pre-flight estimate
-- [ ] A new add_story_estimate tool (or extended add_story_note) accepts per-dimension scores and an overall S/M/L/XL band
-- [ ] The estimate is stored in the story file under a `## Estimate` section with a timestamp
-- [ ] Calling the estimate tool is not mandatory — the in-progress transition is not blocked if skipped
-- [ ] Estimate data is distinct from notes and actuals so it can be parsed independently
+- [ ] set_story_status in-progress response includes a readiness_flags array (empty if no flags detected)
+- [ ] Flags checked: AC missing or placeholder, AC count is zero, story has no description, story notes contain unresolved questions (lines containing "?")
+- [ ] Each flag in the response has a code (e.g. "NO_AC", "VAGUE_AC") and a human-readable message
+- [ ] Response includes a ready boolean: true when readiness_flags is empty, false otherwise
+- [ ] The in-progress transition always succeeds regardless of flags
+- [ ] Tests cover: clean story (ready: true, empty flags), story with missing AC, story with placeholder AC, story with open questions in notes
