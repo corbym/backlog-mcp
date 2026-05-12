@@ -123,13 +123,13 @@ For a global fallback (applies to every project), place the same config in `~/.c
 
 | Tool | Description |
 |------|-------------|
-| `list_stories` | List stories, optionally filtered by `epic_id` or `status` |
-| `get_story` | Get full markdown content and metadata for a story |
+| `list_stories` | List stories, optionally filtered by `epic_id`, `status`, or `story_type` |
+| `get_story` | Get full markdown content and metadata for a story, including `story_type` |
 | `get_index_summary` | High-level epic/story counts by status |
 | `create_epic` | Create a new epic — assigns next EPIC-NNN ID, writes epic file, registers in index |
 | `create_story` | Create a new story under an epic — assigns next STORY-NNN ID, registers in index and backlog |
 | `set_epic_status` | Update epic lifecycle status with completion and regression guards (see below) |
-| `set_story_status` | Update story status in index and backlog |
+| `set_story_status` | Update story status (`draft`, `in-progress`, `blocked`, `deferred`) in index and backlog |
 | `set_acceptance_criteria` | Replace the acceptance criteria section of a story (idempotent) |
 | `check_acceptance_criterion` | Tick a single acceptance criterion `[x]` by index or text |
 | `add_story_note` | Append a timestamped note to a story file |
