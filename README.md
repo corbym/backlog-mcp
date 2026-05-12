@@ -14,9 +14,26 @@ The MCP server is a local process each agent runs for itself. It reads and write
 
 ## Install
 
+### Homebrew (tap)
+
+```bash
+brew tap corbym/backlog-mcp
+brew install backlog-mcp
+```
+
+You can also install directly without an explicit tap step:
+
+```bash
+brew install corbym/backlog-mcp/backlog-mcp
+```
+
+### Binary release
+
 Download the latest binary for your platform from the [Releases](../../releases) page and put it somewhere on your `$PATH`.
 
-Or, if you have Go installed:
+### Go install
+
+If you have Go installed:
 
 ```bash
 go install github.com/corbym/backlog-mcp@latest
@@ -117,7 +134,10 @@ For a global fallback (applies to every project), place the same config in `~/.c
 | `check_acceptance_criterion` | Tick a single acceptance criterion `[x]` by index or text |
 | `add_story_note` | Append a timestamped note to a story file |
 | `complete_story` | Mark a story done with a mandatory completion summary and acceptance criteria validation |
-| `groom_epic` | Review an epic's stories, surface gaps, and suggest missing work |
+| `groom_epic` | Reconcile an epic's `## Stories` section against story files and index data |
+| `bulk_update_acceptance_criteria` | Update multiple acceptance-criteria checkbox states for one story in one call |
+| `bulk_update_stories` | Update multiple stories in one call (status, note, and/or acceptance criteria patches) |
+| `bulk_update_epics` | Update multiple epics in one call (status and/or note) |
 
 ### `set_epic_status` guards
 
@@ -149,9 +169,9 @@ Acceptance criteria must be set (not the default placeholder) before a story can
 ```markdown
 ## EPIC-001: Combat System — `draft`
 
-| Story | Title | Status |
-|-------|-------|--------|
-| [STORY-001](./epic-001-combat-system/story-001.md) | Basic combat | draft |
+| Story | Title | Status | Type |
+|-------|-------|--------|------|
+| [STORY-001](./epic-001-combat-system/story-001.md) | Basic combat | draft | feature |
 ```
 
 **`backlog.md`** — priority-ordered numbered list:
@@ -162,6 +182,8 @@ Acceptance criteria must be set (not the default placeholder) before a story can
 ```
 
 **Story files** live at `epic-NNN-slug/story-NNN.md` under `BACKLOG_ROOT`.
+
+**Story types:** `feature`, `bug`, `chore`, `spike`
 
 **Status values:** `draft`, `in-progress`, `done`, `blocked`, `deferred`
 
