@@ -30,6 +30,20 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+brews:
+  - name: backlog-mcp
+    repository:
+      owner: corbym
+      name: homebrew-backlog-mcp
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/corbym/backlog-mcp"
+    description: "A local MCP server that gives AI agents read/write access to a story-based project backlog"
+    license: "MIT"
+    install: |
+      bin.install "backlog-mcp"
+    test: |
+      system "#{bin}/backlog-mcp", "--version"
+
 changelog:
   sort: asc
   filters:
