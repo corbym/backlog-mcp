@@ -7,3 +7,4 @@ When a story reaches `done`, remove it from the backlog and renumber.
 3. [STORY-018](epic-003-agent-estimation/story-018.md) ([EPIC-003](epic-003-agent-estimation/epic-003.md)) — Agent pre-flight self-estimate recorded on story start
 4. [STORY-019](epic-003-agent-estimation/story-019.md) ([EPIC-003](epic-003-agent-estimation/epic-003.md)) — Calibration report: compare pre-flight estimates vs actuals *(deferred)*
 5. [STORY-020](epic-003-agent-estimation/story-020.md) ([EPIC-003](epic-003-agent-estimation/epic-003.md)) — Automate pre-flight scoring on set_story_status in-progress *(deferred)*
+6. [STORY-023](epic-004-distribution/story-023.md) ([EPIC-004](epic-004-distribution/epic-004.md)) — Create Homebrew tap formula and release automation *(in-progress)*

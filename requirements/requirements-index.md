@@ -36,3 +36,9 @@
 | [STORY-018](./epic-003-agent-estimation/story-018.md) | Agent pre-flight self-estimate recorded on story start | draft | feature |
 | [STORY-019](./epic-003-agent-estimation/story-019.md) | Calibration report: compare pre-flight estimates vs actuals | deferred | feature |
 | [STORY-020](./epic-003-agent-estimation/story-020.md) | Automate pre-flight scoring on set_story_status in-progress | deferred | feature |
+
+## EPIC-004: Distribution — `in-progress`
+
+| Story | Title | Status |
+|-------|-------|--------|
+| [STORY-023](./epic-004-distribution/story-023.md) | Create Homebrew tap formula and release automation | in-progress |
