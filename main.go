@@ -1,11 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=<tag>".
+var Version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Println(Version)
+		return
+	}
+
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		args := os.Args[2:]
 		dir := "requirements"
