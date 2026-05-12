@@ -16,3 +16,6 @@ Create a Homebrew tap formula for `backlog-mcp` so users can install via `brew i
 
 <!-- backlog-mcp: 2026-05-12T08:32:04Z -->
 Story created for PR on branch copilot/create-homebrew-tap-formula. Branch was created before story per task requirement; story ID STORY-023 assigned retroactively.
+
+<!-- backlog-mcp: 2026-05-12T08:59:58Z -->
+PR #9: feat(STORY-023): Add Homebrew tap formula and release automation
