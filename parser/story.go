@@ -125,6 +125,26 @@ func parseACText(fullText string) (id, text string) {
 	return "", fullText
 }
 
+// dashNormalizer replaces em-dash, en-dash, horizontal bar, figure dash, and
+// minus sign with a plain hyphen-minus so that text-based AC lookups are
+// tolerant of Unicode dash variants that LLMs and editors may substitute.
+var dashNormalizer = strings.NewReplacer(
+	"—", "-", // em dash
+	"–", "-", // en dash
+	"―", "-", // horizontal bar
+	"‒", "-", // figure dash
+	"−", "-", // minus sign
+	"‐", "-", // hyphen
+	"‑", "-", // non-breaking hyphen
+)
+
+// normalizeACKey folds dash variants and collapses whitespace so that AC text
+// comparisons are tolerant of minor Unicode differences between what was stored
+// and what an agent passes as a lookup key.
+func normalizeACKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(dashNormalizer.Replace(s)))
+}
+
 // assignMissingIDs adds AC IDs to any criterion lines in the AC section that do
 // not already have one. lines is the full file split by newline; acStart and
 // acEnd delimit the lines belonging to the AC section (exclusive of the heading
@@ -353,9 +373,9 @@ func CheckAcceptanceCriterion(root, relPath string, criterionIndex int, criterio
 		targetText = acLines[criterionIndex].item.Text
 	} else {
 		for _, ac := range acLines {
-			// Match by ID (exact, case-insensitive) or by text (case-insensitive).
+			// Match by ID (exact, case-insensitive) or by text (normalised, case-insensitive).
 			matchByID := ac.item.ID != "" && strings.EqualFold(ac.item.ID, criterionText)
-			matchByText := strings.EqualFold(ac.item.Text, criterionText)
+			matchByText := normalizeACKey(ac.item.Text) == normalizeACKey(criterionText)
 			if matchByID || matchByText {
 				if ac.item.Checked {
 					return "", fmt.Errorf("criterion %q is already checked", ac.item.Text)
@@ -476,7 +496,7 @@ func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (not
 		}
 		id, text := parseACText(fullText)
 		entry := acEntry{lineIdx: acStart + 1 + i, checked: checked}
-		acByText[text] = entry
+		acByText[normalizeACKey(text)] = entry
 		if id != "" {
 			acByID[id] = entry
 		}
@@ -485,7 +505,7 @@ func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (not
 	// Validate that all requested criteria exist (by ID or by text).
 	for key := range updates {
 		_, byID := acByID[key]
-		_, byText := acByText[key]
+		_, byText := acByText[normalizeACKey(key)]
 		if !byID && !byText {
 			notFound = append(notFound, key)
 		}
@@ -500,7 +520,7 @@ func PatchAcceptanceCriteria(root, relPath string, updates map[string]bool) (not
 		if e, ok := acByID[key]; ok {
 			entry = e
 		} else {
-			entry = acByText[key]
+			entry = acByText[normalizeACKey(key)]
 		}
 		if wantChecked && !entry.checked {
 			lines[entry.lineIdx] = strings.Replace(lines[entry.lineIdx], "- [ ] ", "- [x] ", 1)

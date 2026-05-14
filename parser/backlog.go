@@ -58,12 +58,14 @@ func ParseBacklog(root string) ([]BacklogEntry, error) {
 
 // RemoveFromBacklog removes the entry for storyID from backlog.md and
 // renumbers the remaining entries sequentially from 1.
-// Returns an error only if the file cannot be read or written; missing storyID is silently ignored.
-func RemoveFromBacklog(root, storyID string) error {
+// Returns (true, nil) when the entry was found and removed, (false, nil) when
+// the entry was not in the backlog (caller can decide whether to treat that as
+// an error), and (false, err) on I/O failure.
+func RemoveFromBacklog(root, storyID string) (removed bool, err error) {
 	path := filepath.Join(root, "backlog.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("reading backlog: %w", err)
+		return false, fmt.Errorf("reading backlog: %w", err)
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -73,21 +75,22 @@ func RemoveFromBacklog(root, storyID string) error {
 	for _, line := range lines {
 		m := backlogEntryRe.FindStringSubmatch(line)
 		if m == nil {
-			// non-entry line: pass through unchanged
 			filtered = append(filtered, line)
 			continue
 		}
 		if m[1] == storyID {
-			// drop this entry
+			removed = true
 			continue
 		}
-		// renumber: replace leading "N." with "counter." preserving the rest of the line
 		newLine := leadingNumRe.ReplaceAllString(line, fmt.Sprintf("%d.", counter))
 		filtered = append(filtered, newLine)
 		counter++
 	}
 
-	return writeAtomic(path, []byte(strings.Join(filtered, "\n")))
+	if !removed {
+		return false, nil
+	}
+	return true, writeAtomic(path, []byte(strings.Join(filtered, "\n")))
 }
 
 // ReorderBacklog rewrites backlog.md so entries appear in the order given by

@@ -389,10 +389,11 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				if e.StoryID != storyID {
 					continue
 				}
-				if err := parser.RemoveFromBacklog(cfg.StoriesRoot, storyID); err != nil {
+				removed, err := parser.RemoveFromBacklog(cfg.StoriesRoot, storyID)
+				if err != nil {
 					return toolError(err), nil
 				}
-				backlogRemoved = true
+				backlogRemoved = removed
 				break
 			}
 
@@ -909,7 +910,9 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 							row.StatusUpdated = true
 							row.OldStatus = oldStatus
 							row.NewStatus = newStatus
-							_ = parser.UpdateBacklogStatus(cfg.StoriesRoot, storyID, newStatus)
+							if backlogErr := parser.UpdateBacklogStatus(cfg.StoriesRoot, storyID, newStatus); backlogErr != nil {
+								row.Errors = append(row.Errors, "backlog: "+backlogErr.Error())
+							}
 							if _, err := parser.UpdateStoryStatusMetadata(cfg.StoriesRoot, relPath, newStatus); err != nil {
 								// non-fatal
 							}
