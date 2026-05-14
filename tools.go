@@ -18,7 +18,8 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── list_stories ────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("list_stories",
-			mcp.WithDescription("List stories from the project index, optionally filtered by epic, status, or type. Returns an array of {story_id, title, status, epic_id, story_type} objects. With no filters, returns all stories across all epics."),
+			mcp.WithDescription("List stories from the project index, optionally filtered by epic, status, or type. Returns an array of {story_id, title, status, epic_id, story_type} objects. With no filters, returns all stories across all epics. "+
+				"Other tools in this server: get_story, get_index_summary, create_epic, create_story, set_story_status, set_epic_status, add_story_note, set_acceptance_criteria, check_acceptance_criterion, complete_story, bulk_update_stories, bulk_update_epics, bulk_update_acceptance_criteria, groom_epic, reorder_backlog."),
 			mcp.WithString("epic_id",
 				mcp.Description("Optional epic ID to filter by (e.g. EPIC-003). When provided, only stories belonging to this epic are returned."),
 			),
@@ -833,7 +834,9 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				mcp.Description("Array of story update objects. Each must include story_id; status, note, and criteria are optional. "+
 					"status must be one of: draft, in-progress, blocked, deferred (use complete_story to mark done). "+
 					"note is appended, not replaced. "+
-					"criteria is a map of criterion text to boolean checked state."),
+					"criteria is a map of criterion text (or AC ID) to boolean checked state — true = checked, false = unchecked. "+
+					"Example: {\"User can log in\": true, \"User sees error on bad password\": false}. "+
+					"Keys are matched case-insensitively with tolerance for Unicode dash variants (em-dash, en-dash, etc.)."),
 				mcp.Items(map[string]any{
 					"type": "object",
 					"properties": map[string]any{
