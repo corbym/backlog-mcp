@@ -50,7 +50,7 @@
 | [STORY-024](./epic-005-backlog-mcp-quality-dx/story-024.md) | Add reorder_backlog MCP tool | draft | feature |
 | [STORY-025](./epic-005-backlog-mcp-quality-dx/story-025.md) | Fix em-dash encoding artefacts in acceptance criteria text | draft | bug |
 | [STORY-026](./epic-005-backlog-mcp-quality-dx/story-026.md) | Add tool-surface discovery hint to at least one tool description | draft | chore |
-| [STORY-027](./epic-005-backlog-mcp-quality-dx/story-027.md) | Update AGENTS.md with complete tool surface | draft | chore |
+| [STORY-027](./epic-005-backlog-mcp-quality-dx/story-027.md) | Update AGENTS.md with complete tool surface | deferred | chore |
 | [STORY-028](./epic-005-backlog-mcp-quality-dx/story-028.md) | Document bulk_update_stories criteria key format | draft | chore |
 | [STORY-029](./epic-005-backlog-mcp-quality-dx/story-029.md) | Fix backlog.go regex to handle format deviations gracefully | draft | bug |
 | [STORY-030](./epic-005-backlog-mcp-quality-dx/story-030.md) | Make UpdateBacklogStatus loud when story is not in backlog | draft | bug |

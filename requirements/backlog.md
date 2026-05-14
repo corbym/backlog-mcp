@@ -11,7 +11,7 @@ When a story reaches `done`, remove it from the backlog and renumber.
 7. [STORY-024](epic-005-backlog-mcp-quality-dx/story-024.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Add reorder_backlog MCP tool
 8. [STORY-025](epic-005-backlog-mcp-quality-dx/story-025.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Fix em-dash encoding artefacts in acceptance criteria text
 9. [STORY-026](epic-005-backlog-mcp-quality-dx/story-026.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Add tool-surface discovery hint to at least one tool description
-10. [STORY-027](epic-005-backlog-mcp-quality-dx/story-027.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Update AGENTS.md with complete tool surface
+10. [STORY-027](epic-005-backlog-mcp-quality-dx/story-027.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Update AGENTS.md with complete tool surface *(deferred)*
 11. [STORY-028](epic-005-backlog-mcp-quality-dx/story-028.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Document bulk_update_stories criteria key format
 12. [STORY-029](epic-005-backlog-mcp-quality-dx/story-029.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Fix backlog.go regex to handle format deviations gracefully
 13. [STORY-030](epic-005-backlog-mcp-quality-dx/story-030.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Make UpdateBacklogStatus loud when story is not in backlog
