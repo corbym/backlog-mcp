@@ -1066,6 +1066,66 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	)
 
 
+	// ── reorder_backlog ──────────────────────────────────────────────────────
+	s.AddTool(
+		mcp.NewTool("reorder_backlog",
+			mcp.WithDescription("Reorder the active backlog by supplying the desired story ID sequence. "+
+				"Entries present in story_ids are placed first in that order; any backlog entries omitted from the list are appended at the end so nothing is silently dropped. "+
+				"IDs not found in the backlog (e.g. already done) are reported in not_found but do not cause a failure. "+
+				"Returns {placed: [ordered story IDs written], not_found: [IDs absent from backlog], appended: [IDs moved to end because they were omitted]}."),
+			mcp.WithArray("story_ids",
+				mcp.Description("Ordered list of story IDs representing the desired backlog priority, highest priority first."),
+				mcp.Items(map[string]any{"type": "string"}),
+				mcp.Required(),
+			),
+		),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			unlock, err := parser.AcquireLock(cfg.StoriesRoot, 5*time.Second)
+			if err != nil {
+				return toolError(err), nil
+			}
+			defer unlock()
+
+			rawIDs, err := requiredStringSlice(req, "story_ids")
+			if err != nil {
+				return toolError(err), nil
+			}
+			ids := make([]string, len(rawIDs))
+			for i, id := range rawIDs {
+				ids[i] = strings.ToUpper(id)
+			}
+
+			placed, notFound, err := parser.ReorderBacklog(cfg.StoriesRoot, ids)
+			if err != nil {
+				return toolError(err), nil
+			}
+
+			// Compute which IDs were appended (in backlog but not in the requested list).
+			requested := map[string]bool{}
+			for _, id := range ids {
+				requested[id] = true
+			}
+			var appended []string
+			for _, id := range placed {
+				if !requested[id] {
+					appended = append(appended, id)
+				}
+			}
+			if appended == nil {
+				appended = []string{}
+			}
+			if notFound == nil {
+				notFound = []string{}
+			}
+
+			return toolJSON(map[string]any{
+				"placed":    placed,
+				"not_found": notFound,
+				"appended":  appended,
+			})
+		},
+	)
+
 	s.AddTool(
 		mcp.NewTool("get_index_summary",
 			mcp.WithDescription("Get a high-level summary of all epics and their story counts broken down by status. Useful for situational awareness at the start of a session, without reading every file. Returns an array of {epic_id, title, status, counts: {status: n}, stories: [{story_id, status}]}."),

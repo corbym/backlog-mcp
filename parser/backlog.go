@@ -90,6 +90,80 @@ func RemoveFromBacklog(root, storyID string) error {
 	return writeAtomic(path, []byte(strings.Join(filtered, "\n")))
 }
 
+// ReorderBacklog rewrites backlog.md so entries appear in the order given by
+// orderedIDs. IDs in the list that are not currently in the backlog are
+// returned in notFound (not a hard error). Backlog entries absent from
+// orderedIDs are appended at the end, preserving their relative order, so no
+// entries are ever silently dropped. Renumbers all entries from 1.
+func ReorderBacklog(root string, orderedIDs []string) (placed []string, notFound []string, err error) {
+	path := filepath.Join(root, "backlog.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading backlog: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	// Build an id→raw-line map and record original entry order.
+	entryLines := map[string]string{}
+	var originalOrder []string
+	for _, line := range lines {
+		m := backlogEntryRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		id := m[1]
+		entryLines[id] = line
+		originalOrder = append(originalOrder, id)
+	}
+
+	// Find IDs requested but not present in the backlog.
+	for _, id := range orderedIDs {
+		if _, ok := entryLines[id]; !ok {
+			notFound = append(notFound, id)
+		}
+	}
+
+	// Final order: requested (found) IDs first, then any leftovers in original order.
+	seen := map[string]bool{}
+	var finalOrder []string
+	for _, id := range orderedIDs {
+		if _, ok := entryLines[id]; ok {
+			finalOrder = append(finalOrder, id)
+			seen[id] = true
+		}
+	}
+	for _, id := range originalOrder {
+		if !seen[id] {
+			finalOrder = append(finalOrder, id)
+		}
+	}
+
+	// Rebuild: walk original lines, substitute each entry slot with the next
+	// ID from finalOrder (preserving non-entry lines like headers/blanks).
+	counter := 1
+	entryIdx := 0
+	newLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		m := backlogEntryRe.FindStringSubmatch(line)
+		if m == nil {
+			newLines = append(newLines, line)
+			continue
+		}
+		if entryIdx >= len(finalOrder) {
+			continue
+		}
+		newID := finalOrder[entryIdx]
+		entryIdx++
+		newLine := leadingNumRe.ReplaceAllString(entryLines[newID], fmt.Sprintf("%d.", counter))
+		newLines = append(newLines, newLine)
+		placed = append(placed, newID)
+		counter++
+	}
+
+	return placed, notFound, writeAtomic(path, []byte(strings.Join(newLines, "\n")))
+}
+
 // UpdateBacklogStatus updates the inline status marker for storyID in backlog.md.
 // If the story has no existing marker, one is appended. If newStatus is empty the marker is removed.
 func UpdateBacklogStatus(root, storyID, newStatus string) error {
