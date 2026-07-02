@@ -54,3 +54,6 @@
 | [STORY-028](./epic-005-backlog-mcp-quality-dx/story-028.md) | Document bulk_update_stories criteria key format | draft | chore |
 | [STORY-029](./epic-005-backlog-mcp-quality-dx/story-029.md) | Fix backlog.go regex to handle format deviations gracefully | draft | bug |
 | [STORY-030](./epic-005-backlog-mcp-quality-dx/story-030.md) | Make UpdateBacklogStatus loud when story is not in backlog | draft | bug |
+| [STORY-031](./epic-005-backlog-mcp-quality-dx/story-031.md) | Fix set_acceptance_criteria corruption when passed pre-ticked checkbox strings | done | bug |
+| [STORY-032](./epic-005-backlog-mcp-quality-dx/story-032.md) | Fix list_stories Unicode encoding artefacts in story titles | draft | bug |
+| [STORY-033](./epic-005-backlog-mcp-quality-dx/story-033.md) | Fix bulk_update_acceptance_criteria combined ID:text key lookup failure | draft | bug |

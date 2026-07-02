@@ -2,6 +2,8 @@
 **/.claude/settings*
 .claude/settings.json
 /backlog-mcp
+/backlog-mcp.exe
 **/.backlog-mcp.lock
 .backlog-mcp.lock
 .mcp.json
+.cursor/mcp.json

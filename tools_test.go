@@ -189,6 +189,24 @@ func hasCriterionLine(body, text string, checked bool) bool {
 	return false
 }
 
+// hasCriterionLineAtStart returns true if body contains a line whose OUTER
+// checkbox marker ("- [x] " or "- [ ] ") matches checked and whose remainder
+// contains text. Unlike hasCriterionLine this does not fire when the marker
+// appears embedded inside the criterion content.
+func hasCriterionLineAtStart(body, text string, checked bool) bool {
+	prefix := "- [ ] "
+	if checked {
+		prefix = "- [x] "
+	}
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, prefix) && strings.Contains(trimmed, text) {
+			return true
+		}
+	}
+	return false
+}
+
 // extractACID extracts the first "AC-STORY-NNN-XXXXXXXX" ID found in a line
 // that also contains the given text substring. Returns "" if not found.
 func extractACID(body, text string) string {
@@ -1600,6 +1618,146 @@ func TestSetAcceptanceCriteria_NewCriteriaGetFreshIDs(t *testing.T) {
 	}
 	if strings.Contains(string(content2), "First criterion") {
 		t.Error("replaced criterion should be gone")
+	}
+}
+
+// ── set_acceptance_criteria: pre-ticked input (STORY-031) ─────────────────────
+
+// TestSetAcceptanceCriteria_PreTickedBareInput_NoDoubleNesting verifies that
+// passing "[x] text" writes a properly ticked outer checkbox, not a nested one.
+func TestSetAcceptanceCriteria_PreTickedBareInput_NoDoubleNesting(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"[x] Enemy can attack"},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body := string(content)
+
+	// The outer checkbox must be ticked ("- [x] ..."), not unchecked.
+	if !hasCriterionLineAtStart(body, "Enemy can attack", true) {
+		t.Errorf("expected a line starting with '- [x] ' containing 'Enemy can attack', got:\n%s", body)
+	}
+	// No line should carry the checkbox marker embedded inside the criterion content.
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- [ ] ") {
+			inner := trimmed[6:]
+			if strings.HasPrefix(inner, "[x]") || strings.HasPrefix(inner, "[X]") || strings.HasPrefix(inner, "[ ]") {
+				t.Errorf("embedded checkbox in criterion content: %q", trimmed)
+			}
+		}
+	}
+}
+
+// TestSetAcceptanceCriteria_PreTickedDashInput_NoDoubleNesting verifies that
+// passing "- [x] text" normalises to a single properly ticked line.
+func TestSetAcceptanceCriteria_PreTickedDashInput_NoDoubleNesting(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"- [x] Enemy can attack"},
+	})
+
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body := string(content)
+
+	if !hasCriterionLineAtStart(body, "Enemy can attack", true) {
+		t.Errorf("expected a line starting with '- [x] ' containing 'Enemy can attack', got:\n%s", body)
+	}
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") {
+			inner := trimmed[6:]
+			if strings.HasPrefix(inner, "- [") || strings.HasPrefix(inner, "[x]") || strings.HasPrefix(inner, "[ ]") {
+				t.Errorf("embedded checkbox in criterion content: %q", trimmed)
+			}
+		}
+	}
+}
+
+// TestSetAcceptanceCriteria_PreTickedWithIDInput_PreservesID verifies that
+// passing the full stored line "- [x] AC-STORY-NNN-xxxxxxxx: text" preserves
+// the existing ID (checked via extractACID, not strings.Contains).
+func TestSetAcceptanceCriteria_PreTickedWithIDInput_PreservesID(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Enemy can attack"},
+	})
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	assignedID := extractACID(string(content), "Enemy can attack")
+	if assignedID == "" {
+		t.Fatal("expected an ID to be assigned on first call")
+	}
+
+	// Pass the full stored line format back.
+	fullLine := "- [x] " + assignedID + ": Enemy can attack"
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{fullLine},
+	})
+
+	content2, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	body2 := string(content2)
+
+	// Use extractACID so we verify the ID is the criterion prefix, not just
+	// embedded somewhere in corrupted content.
+	idAfter := extractACID(body2, "Enemy can attack")
+	if idAfter != assignedID {
+		t.Errorf("ID changed: was %q, now %q; body:\n%s", assignedID, idAfter, body2)
+	}
+	if !hasCriterionLineAtStart(body2, "Enemy can attack", true) {
+		t.Errorf("expected ticked line starting with '- [x] ', got:\n%s", body2)
+	}
+}
+
+// TestSetAcceptanceCriteria_RoundTripPreservesIDs verifies that reading raw
+// criterion lines from a story file and re-passing them does not regenerate IDs.
+// Uses extractACID (not strings.Contains) so an ID embedded in corrupted content
+// does not satisfy the assertion.
+func TestSetAcceptanceCriteria_RoundTripPreservesIDs(t *testing.T) {
+	root, s := newFixture(t)
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": []any{"Combat starts", "Player loses HP"},
+	})
+	content, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	id1 := extractACID(string(content), "Combat starts")
+	id2 := extractACID(string(content), "Player loses HP")
+	if id1 == "" || id2 == "" {
+		t.Fatal("expected IDs to be assigned after first call")
+	}
+
+	// Collect the raw stored lines (checkbox + ID prefix + text).
+	var rawLines []any
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") {
+			rawLines = append(rawLines, trimmed)
+		}
+	}
+	if len(rawLines) != 2 {
+		t.Fatalf("expected 2 raw criterion lines, got %d: %v", len(rawLines), rawLines)
+	}
+
+	callTool(t, s, "set_acceptance_criteria", map[string]any{
+		"story_id": "STORY-001",
+		"criteria": rawLines,
+	})
+
+	content2, _ := os.ReadFile(filepath.Join(root, "epic-001-combat-system", "story-001.md"))
+	// extractACID finds the ID *as the criterion prefix*, not just anywhere in the file.
+	if got := extractACID(string(content2), "Combat starts"); got != id1 {
+		t.Errorf("ID for 'Combat starts' changed: was %q, now %q", id1, got)
+	}
+	if got := extractACID(string(content2), "Player loses HP"); got != id2 {
+		t.Errorf("ID for 'Player loses HP' changed: was %q, now %q", id2, got)
 	}
 }
 

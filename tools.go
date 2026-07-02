@@ -504,13 +504,13 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── set_acceptance_criteria ──────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("set_acceptance_criteria",
-			mcp.WithDescription("Replace the acceptance criteria section of a story file. Each string in the criteria array becomes a `- [ ] ...` checklist line. Idempotent: calling again replaces the previous AC entirely. Acceptance criteria must be set before a story can be completed with complete_story. Returns {story_id, criteria_count, path}."),
+			mcp.WithDescription("Replace the acceptance criteria section of a story file. Each string in the criteria array becomes a checklist line. Plain text is written as an unchecked `- [ ] ...` item. A string may also be passed as a full checklist line (e.g. `- [x] text`, `[x] text`, or the full stored line including an existing AC-ID) — the leading checkbox marker is stripped and its checked state is preserved, and any existing AC-ID in the input is kept rather than regenerated. Idempotent: calling again replaces the previous AC entirely. Acceptance criteria must be set before a story can be completed with complete_story. Returns {story_id, criteria_count, path}."),
 			mcp.WithString("story_id",
 				mcp.Description("Story ID to update, e.g. STORY-007"),
 				mcp.Required(),
 			),
 			mcp.WithArray("criteria",
-				mcp.Description("List of acceptance criteria strings. Each entry becomes a checklist item (- [ ] ...) in the story file. Must contain at least one item."),
+				mcp.Description("List of acceptance criteria strings. Plain text becomes an unchecked `- [ ] ...` item. To mark a criterion as already checked, prefix it with `[x] ` or `- [x] ` (e.g. `- [x] User can log in`) — the checked state is preserved and any leading AC-ID in the string is kept rather than regenerated. Must contain at least one item."),
 				mcp.Items(map[string]any{"type": "string"}),
 				mcp.Required(),
 			),

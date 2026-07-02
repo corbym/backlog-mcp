@@ -125,6 +125,25 @@ func parseACText(fullText string) (id, text string) {
 	return "", fullText
 }
 
+// normalizeACInput strips any leading checkbox marker from a criterion string
+// and reports whether the criterion was ticked. This lets callers pass criteria
+// in the full stored format ("- [x] AC-ID: text" or "[x] text") without causing
+// double-nested checkboxes when SetAcceptanceCriteria re-applies its own prefix.
+func normalizeACInput(c string) (bare string, checked bool) {
+	s := strings.TrimSpace(c)
+	switch {
+	case strings.HasPrefix(s, "- [x] "), strings.HasPrefix(s, "- [X] "):
+		return s[6:], true
+	case strings.HasPrefix(s, "- [ ] "):
+		return s[6:], false
+	case strings.HasPrefix(s, "[x] "), strings.HasPrefix(s, "[X] "):
+		return s[4:], true
+	case strings.HasPrefix(s, "[ ] "):
+		return s[4:], false
+	}
+	return s, false
+}
+
 // dashNormalizer replaces em-dash, en-dash, horizontal bar, figure dash, and
 // minus sign with a plain hyphen-minus so that text-based AC lookups are
 // tolerant of Unicode dash variants that LLMs and editors may substitute.
@@ -279,11 +298,20 @@ func SetAcceptanceCriteria(root, relPath string, criteria []string) error {
 	replacement := make([]string, 0, len(criteria)+2)
 	replacement = append(replacement, "## Acceptance criteria", "")
 	for _, c := range criteria {
-		// The caller may pass the criterion with or without an ID prefix.
-		existingID, text := parseACText(c)
+		// Strip any leading checkbox marker the caller may have included (e.g.
+		// when re-passing criteria read directly from a story file). Preserve
+		// the ticked state so a pre-checked criterion stays checked.
+		bare, ticked := normalizeACInput(c)
+		marker := "- [ ] "
+		if ticked {
+			marker = "- [x] "
+		}
+
+		// The caller may pass the bare criterion with or without an ID prefix.
+		existingID, text := parseACText(bare)
 		if existingID == "" {
 			// No ID in the input — look for a previously assigned one.
-			text = c
+			text = bare
 			if id, ok := existingIDs[text]; ok {
 				existingID = id
 			} else if storyID != "" {
@@ -291,9 +319,9 @@ func SetAcceptanceCriteria(root, relPath string, criteria []string) error {
 			}
 		}
 		if existingID != "" {
-			replacement = append(replacement, "- [ ] "+existingID+": "+text)
+			replacement = append(replacement, marker+existingID+": "+text)
 		} else {
-			replacement = append(replacement, "- [ ] "+text)
+			replacement = append(replacement, marker+text)
 		}
 	}
 	replacement = append(replacement, "")

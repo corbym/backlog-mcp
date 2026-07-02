@@ -13,3 +13,6 @@ Fixes, documentation improvements, and quality-of-life features for the backlog-
 - [ ] [STORY-028](story-028.md) — Document bulk_update_stories criteria key format
 - [ ] [STORY-029](story-029.md) — Fix backlog.go regex to handle format deviations gracefully
 - [ ] [STORY-030](story-030.md) — Make UpdateBacklogStatus loud when story is not in backlog
+- [x] [STORY-031](story-031.md) — Fix set_acceptance_criteria corruption when passed pre-ticked checkbox strings
+- [ ] [STORY-032](story-032.md) — Fix list_stories Unicode encoding artefacts in story titles
+- [ ] [STORY-033](story-033.md) — Fix bulk_update_acceptance_criteria combined ID:text key lookup failure

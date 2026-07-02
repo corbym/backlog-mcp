@@ -15,3 +15,5 @@ When a story reaches `done`, remove it from the backlog and renumber.
 11. [STORY-028](epic-005-backlog-mcp-quality-dx/story-028.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Document bulk_update_stories criteria key format
 12. [STORY-029](epic-005-backlog-mcp-quality-dx/story-029.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Fix backlog.go regex to handle format deviations gracefully
 13. [STORY-030](epic-005-backlog-mcp-quality-dx/story-030.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Make UpdateBacklogStatus loud when story is not in backlog
+14. [STORY-032](epic-005-backlog-mcp-quality-dx/story-032.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Fix list_stories Unicode encoding artefacts in story titles
+15. [STORY-033](epic-005-backlog-mcp-quality-dx/story-033.md) ([EPIC-005](epic-005-backlog-mcp-quality-dx/epic-005.md)) — Fix bulk_update_acceptance_criteria combined ID:text key lookup failure
