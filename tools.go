@@ -77,14 +77,19 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 	// ── get_story ────────────────────────────────────────────────────────────
 	s.AddTool(
 		mcp.NewTool("get_story",
-			mcp.WithDescription("Get the full markdown content and metadata for a single story. Returns {story_id, title, status, epic_id, path, content} where content is the raw markdown of the story file."),
+			mcp.WithDescription("Get the full markdown content and metadata for a single story. Returns {story_id, title, status, epic_id, path, content} where content is the raw markdown of the story file. "+
+				"Set include_notes=false to omit the '## Notes' section (and everything after it) from content — use this when you only need current status, goal, or acceptance criteria and want to avoid paying for a long accumulated note history."),
 			mcp.WithString("story_id",
 				mcp.Description("Story ID to retrieve, e.g. STORY-047"),
 				mcp.Required(),
 			),
+			mcp.WithBoolean("include_notes",
+				mcp.Description("Set to false to exclude the '## Notes' section from the returned content. Defaults to true (full content, unchanged behaviour)."),
+			),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			storyID := strings.ToUpper(requiredString(req, "story_id"))
+			includeNotes := req.GetBool("include_notes", true)
 
 			// resolve metadata from index
 			epics, err := parser.ParseIndex(cfg.StoriesRoot)
@@ -114,6 +119,11 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			content, err := parser.ReadStory(cfg.StoriesRoot, relPath)
 			if err != nil {
 				return toolError(err), nil
+			}
+			if !includeNotes {
+				if idx := strings.Index(content, "## Notes"); idx != -1 {
+					content = strings.TrimRight(content[:idx], "\n") + "\n"
+				}
 			}
 
 			result := map[string]any{
@@ -763,7 +773,7 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			mcp.WithDescription("Update the checked state of individual acceptance criteria on a story in one operation. "+
 				"Only the criteria explicitly listed are modified; all others are left untouched. "+
 				"Criteria are matched by exact text. If any criterion text is not found, no changes are made and an error is returned. "+
-				"Returns {story_id, path, content, criteria_updated, errors}."),
+				"Returns {story_id, path, criteria_updated, errors}. Call get_story separately if you need to see the resulting content."),
 			mcp.WithString("story_id",
 				mcp.Description("Story ID to update, e.g. STORY-047"),
 				mcp.Required(),
@@ -804,11 +814,6 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 				return toolError(err), nil
 			}
 
-			content, err := parser.ReadStory(cfg.StoriesRoot, relPath)
-			if err != nil {
-				return toolError(err), nil
-			}
-
 			updated := make([]string, 0, len(criteriaMap))
 			for text := range criteriaMap {
 				updated = append(updated, text)
@@ -817,7 +822,6 @@ func registerTools(s *server.MCPServer, cfg *Config) {
 			return toolJSON(map[string]any{
 				"story_id":         storyID,
 				"path":             relPath,
-				"content":          content,
 				"criteria_updated": updated,
 				"errors":           notFound,
 			})

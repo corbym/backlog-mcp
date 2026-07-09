@@ -57,3 +57,5 @@
 | [STORY-031](./epic-005-backlog-mcp-quality-dx/story-031.md) | Fix set_acceptance_criteria corruption when passed pre-ticked checkbox strings | done | bug |
 | [STORY-032](./epic-005-backlog-mcp-quality-dx/story-032.md) | Fix list_stories Unicode encoding artefacts in story titles | draft | bug |
 | [STORY-033](./epic-005-backlog-mcp-quality-dx/story-033.md) | Fix bulk_update_acceptance_criteria combined ID:text key lookup failure | draft | bug |
+| [STORY-034](./epic-005-backlog-mcp-quality-dx/story-034.md) | acIDRe requires an 8-hex-char suffix, so plain sequential AC IDs never resolve via acByID | done | bug |
+| [STORY-035](./epic-005-backlog-mcp-quality-dx/story-035.md) | get_story and bulk_update_acceptance_criteria return full unbounded file content | done | chore |

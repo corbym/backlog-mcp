@@ -95,8 +95,12 @@ type ACItem struct {
 }
 
 // acIDRe matches the ID prefix "AC-STORY-NNN-XXXXXXXX: " at the start of a
-// criterion's text part (after the "- [ ] " or "- [x] " marker).
-var acIDRe = regexp.MustCompile(`^(AC-[A-Z]+-\d+-[0-9a-fA-F]{8}): (.*)$`)
+// criterion's text part (after the "- [ ] " or "- [x] " marker). The suffix
+// accepts one or more hex characters rather than exactly 8: this covers both
+// the tool-generated 8-hex-char suffix and hand-authored plain sequential
+// suffixes (e.g. "AC-STORY-159-1", "AC-STORY-159-12") since decimal digits
+// are a subset of hex digits.
+var acIDRe = regexp.MustCompile(`^(AC-[A-Z]+-\d+-[0-9a-fA-F]+): (.*)$`)
 
 // newACID generates a fresh AC criterion ID for the given storyID.
 // Format: AC-STORY-NNN-XXXXXXXX where XXXXXXXX is the first 8 hex chars of a

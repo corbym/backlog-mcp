@@ -307,6 +307,65 @@ func TestGetStory_ReturnsContentAndMetadata(t *testing.T) {
 	}
 }
 
+func TestGetStory_IncludeNotesFalse_TruncatesAtNotesHeading(t *testing.T) {
+	root, s := newFixture(t)
+
+	storyPath := filepath.Join(root, "epic-001-combat-system", "story-001.md")
+	withNotes := fixtureStory001 + "\n## Notes\n\n<!-- backlog-mcp: 2026-07-01T00:00:00Z -->\nFirst progress note.\n\n<!-- backlog-mcp: 2026-07-02T00:00:00Z -->\nSecond progress note.\n"
+	if err := os.WriteFile(storyPath, []byte(withNotes), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	obj := unmarshalObject(t, callTool(t, s, "get_story", map[string]any{
+		"story_id":      "STORY-001",
+		"include_notes": false,
+	}))
+
+	content, _ := obj["content"].(string)
+	if strings.Contains(content, "## Notes") {
+		t.Errorf("content should not contain the Notes heading, got: %q", content)
+	}
+	if strings.Contains(content, "First progress note") || strings.Contains(content, "Second progress note") {
+		t.Errorf("content should not contain note bodies, got: %q", content)
+	}
+	if !strings.Contains(content, "Initial implementation") {
+		t.Errorf("content should still contain everything before Notes, got: %q", content)
+	}
+}
+
+func TestGetStory_IncludeNotesFalse_NoNotesSection_ReturnsFullContent(t *testing.T) {
+	_, s := newFixture(t)
+
+	obj := unmarshalObject(t, callTool(t, s, "get_story", map[string]any{
+		"story_id":      "STORY-001",
+		"include_notes": false,
+	}))
+
+	content, _ := obj["content"].(string)
+	if !strings.Contains(content, "Initial implementation") {
+		t.Errorf("expected full content when no Notes section exists, got: %q", content)
+	}
+}
+
+func TestGetStory_IncludeNotesOmitted_ReturnsFullContent(t *testing.T) {
+	root, s := newFixture(t)
+
+	storyPath := filepath.Join(root, "epic-001-combat-system", "story-001.md")
+	withNotes := fixtureStory001 + "\n## Notes\n\n<!-- backlog-mcp: 2026-07-01T00:00:00Z -->\nFirst progress note.\n"
+	if err := os.WriteFile(storyPath, []byte(withNotes), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	obj := unmarshalObject(t, callTool(t, s, "get_story", map[string]any{
+		"story_id": "STORY-001",
+	}))
+
+	content, _ := obj["content"].(string)
+	if !strings.Contains(content, "## Notes") || !strings.Contains(content, "First progress note") {
+		t.Errorf("expected full content including Notes when include_notes is omitted, got: %q", content)
+	}
+}
+
 func TestGetStory_NotFound_ReturnsError(t *testing.T) {
 	_, s := newFixture(t)
 	result := callTool(t, s, "get_story", map[string]any{
@@ -1072,8 +1131,8 @@ func TestBulkUpdateAC_ChecksNamedCriteria(t *testing.T) {
 	if obj["story_id"] != "STORY-004" {
 		t.Errorf("story_id: got %q", obj["story_id"])
 	}
-	if obj["content"] == nil || obj["content"] == "" {
-		t.Error("expected content in response")
+	if _, present := obj["content"]; present {
+		t.Error("response should not echo file content")
 	}
 
 	content, _ := os.ReadFile(filepath.Join(root, "epic-002-inventory", "story-004.md"))
@@ -1123,6 +1182,45 @@ func TestBulkUpdateAC_UpdatesMultipleCriteriaAtOnce(t *testing.T) {
 	}
 	if !hasCriterionLine(body, "Enemy attacks when adjacent", false) {
 		t.Error("second criterion not unchecked")
+	}
+}
+
+func TestBulkUpdateAC_MatchByPlainSequentialID(t *testing.T) {
+	root, s := newFixture(t)
+
+	// Simulate a story hand-authored with plain sequential AC IDs, as an
+	// external tool/agent would write directly to markdown rather than
+	// going through set_acceptance_criteria (which always mints hex IDs).
+	storyPath := filepath.Join(root, "epic-002-inventory", "story-004.md")
+	plainIDStory := `# STORY-004: Loot drops
+
+Enemies drop loot on death.
+
+## Acceptance criteria
+
+- [ ] AC-STORY-004-1: Enemy drops loot on death
+- [ ] AC-STORY-004-2: Loot respects rarity weights
+`
+	if err := os.WriteFile(storyPath, []byte(plainIDStory), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	obj := unmarshalObject(t, callTool(t, s, "bulk_update_acceptance_criteria", map[string]any{
+		"story_id": "STORY-004",
+		"criteria": map[string]any{
+			"AC-STORY-004-2": true,
+		},
+	}))
+	if obj["story_id"] != "STORY-004" {
+		t.Errorf("story_id: got %q", obj["story_id"])
+	}
+	if errs, _ := obj["errors"].([]any); len(errs) != 0 {
+		t.Errorf("expected no errors, got %v", errs)
+	}
+
+	content, _ := os.ReadFile(storyPath)
+	if !hasCriterionLine(string(content), "Loot respects rarity weights", true) {
+		t.Error("criterion should be checked after bulk update by plain sequential ID")
 	}
 }
 
@@ -1824,5 +1922,33 @@ func TestCheckAcceptanceCriterion_LazyAssignsIDsOnWrite(t *testing.T) {
 	body := string(content)
 	if !strings.Contains(body, "AC-STORY-004-") {
 		t.Error("expected lazy AC ID assignment on write, got:\n" + body)
+	}
+}
+
+func TestCheckAcceptanceCriterion_MatchByPlainSequentialID(t *testing.T) {
+	root, s := newFixture(t)
+
+	storyPath := filepath.Join(root, "epic-002-inventory", "story-004.md")
+	plainIDStory := `# STORY-004: Loot drops
+
+Enemies drop loot on death.
+
+## Acceptance criteria
+
+- [ ] AC-STORY-004-1: Enemy drops loot on death
+- [ ] AC-STORY-004-2: Loot respects rarity weights
+`
+	if err := os.WriteFile(storyPath, []byte(plainIDStory), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	assertOK(t, callTool(t, s, "check_acceptance_criterion", map[string]any{
+		"story_id":       "STORY-004",
+		"criterion_text": "AC-STORY-004-2",
+	}))
+
+	content, _ := os.ReadFile(storyPath)
+	if !hasCriterionLine(string(content), "Loot respects rarity weights", true) {
+		t.Error("criterion should be checked after check_acceptance_criterion matched by plain sequential ID")
 	}
 }

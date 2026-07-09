@@ -16,3 +16,5 @@ Fixes, documentation improvements, and quality-of-life features for the backlog-
 - [x] [STORY-031](story-031.md) — Fix set_acceptance_criteria corruption when passed pre-ticked checkbox strings
 - [ ] [STORY-032](story-032.md) — Fix list_stories Unicode encoding artefacts in story titles
 - [ ] [STORY-033](story-033.md) — Fix bulk_update_acceptance_criteria combined ID:text key lookup failure
+- [x] [STORY-034](story-034.md) — acIDRe requires an 8-hex-char suffix, so plain sequential AC IDs never resolve via acByID
+- [x] [STORY-035](story-035.md) — get_story and bulk_update_acceptance_criteria return full unbounded file content
